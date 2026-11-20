@@ -1994,6 +1994,8 @@ function initScoreboard() {
       resetMatch();
     }
   });
+  const btnWinReset = document.getElementById("btn-sb-win-reset");
+  if (btnWinReset) btnWinReset.addEventListener("click", resetMatch);
   if (btnFullscreen) btnFullscreen.addEventListener("click", toggleScoreboardFullscreen);
   if (btnSettings) btnSettings.addEventListener("click", openScoreboardSettings);
   if (formSettings) formSettings.addEventListener("submit", submitScoreboardSettings);
@@ -2178,10 +2180,7 @@ function checkSetWinner() {
           : scoreState.teamB.name;
       scoreState.isMatchOver = true;
       renderScoreboard();
-      setTimeout(() => {
-        alert(`🏆 CHÚC MỪNG!\n\n${matchWinner} đã THẮNG CHUNG CUỘC với tỷ số ván ${scoreState.teamA.sets} - ${scoreState.teamB.sets}!\n\nNhấn OK để làm mới trận đấu mới.`);
-        resetMatch();
-      }, 150);
+      showMatchWin(matchWinner, scoreState.teamA.sets, scoreState.teamB.sets);
     } else {
       setTimeout(() => {
         if (confirm(`🎉 ${winningName} thắng Ván ${scoreState.currentSet} (${finalScore})!\n\nBắt đầu Ván ${scoreState.currentSet + 1} và đổi sân?`)) {
@@ -2251,6 +2250,7 @@ function resetMatch() {
   scoreState.isMatchOver = false;
   syncBoardOrder();
   renderScoreboard();
+  hideMatchWin();
   showToast("Đã làm mới trận đấu (0 - 0).");
 }
 
@@ -2263,7 +2263,7 @@ function toggleScoreboardFullscreen() {
   arena.classList.toggle("scoreboard-fullscreen", scoreState.isFullscreen);
 
   if (label) {
-    label.textContent = scoreState.isFullscreen ? "Thu nhỏ ✕" : "Toàn màn hình ngang";
+    label.textContent = scoreState.isFullscreen ? "Thu nhỏ ✕" : "Toàn màn hình";
   }
 
   // Request native fullscreen API if available
@@ -2348,6 +2348,42 @@ function playVoiceChime() {
     osc.start();
     osc.stop(ctx.currentTime + 0.13);
   } catch (e) {}
+}
+
+function foldVi(str) {
+  return String(str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+}
+
+function expandSpokenScore(spoken, current) {
+  if (spoken > 9) return spoken;
+  if (current >= 10) {
+    const base = Math.floor(current / 10) * 10;
+    let value = base + spoken;
+    if (value < current) value += 10;
+    return value <= 30 ? value : spoken;
+  }
+  if (current === 9 && spoken === 0) return 10;
+  return spoken;
+}
+
+function interpretScorePair(n1, n2, curA, curB) {
+  const candidates = [
+    { scoreA: expandSpokenScore(n1, curA), scoreB: expandSpokenScore(n2, curB) },
+    { scoreA: expandSpokenScore(n2, curA), scoreB: expandSpokenScore(n1, curB) },
+  ];
+  for (const opt of candidates) {
+    const aPlus = opt.scoreA === curA + 1 && opt.scoreB === curB;
+    const bPlus = opt.scoreB === curB + 1 && opt.scoreA === curA;
+    if (aPlus || bPlus) return { ...opt, winnerSide: aPlus ? "A" : "B" };
+  }
+  if (curA === 0 && curB === 0 && n1 <= 30 && n2 <= 30) {
+    return { scoreA: n1, scoreB: n2, winnerSide: n1 > 0 ? "A" : n2 > 0 ? "B" : null };
+  }
+  return null;
 }
 
 function parseVoiceScore(rawText, curA, curB, nameA, nameB) {
