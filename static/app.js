@@ -1514,7 +1514,8 @@ window.openQrModal = function (settlementId) {
       addInfo,
       accountName: s.to_account_name || removeVietnameseTones(s.to_name).toUpperCase(),
     });
-    const qrUrl = `https://img.vietqr.io/image/${encodeURIComponent(s.to_bank_id)}-${encodeURIComponent(
+    const qrBankId = s.to_bank_id === "MOMO" ? "971025" : s.to_bank_id;
+    const qrUrl = `https://img.vietqr.io/image/${encodeURIComponent(qrBankId)}-${encodeURIComponent(
       s.to_account_no
     )}-compact2.svg?${params.toString()}`;
     wrap.innerHTML = `<img src="${qrUrl}" alt="Mã VietQR chuyển khoản" />`;
@@ -1927,7 +1928,24 @@ const scoreState = {
   history: [],
   isSwapped: false,
   isFullscreen: false,
+  isMatchOver: false,
 };
+
+function syncBoardOrder() {
+  const sideA = document.getElementById("sb-side-a");
+  const sideB = document.getElementById("sb-side-b");
+  const divider = document.getElementById("sb-divider-col");
+  if (divider) divider.style.order = "2";
+  if (sideA && sideB) {
+    if (scoreState.isSwapped) {
+      sideA.style.order = "3";
+      sideB.style.order = "1";
+    } else {
+      sideA.style.order = "1";
+      sideB.style.order = "3";
+    }
+  }
+}
 
 function initScoreboard() {
   const sideA = document.getElementById("sb-side-a");
@@ -1962,13 +1980,34 @@ function initScoreboard() {
   if (formSettings) formSettings.addEventListener("submit", submitScoreboardSettings);
 
   // First serve radio toggle styles in settings modal
+  const pillA = document.getElementById("label-first-serve-a");
+  const pillB = document.getElementById("label-first-serve-b");
+  const radioA = document.querySelector('input[name="first_serve"][value="A"]');
+  const radioB = document.querySelector('input[name="first_serve"][value="B"]');
+
   document.querySelectorAll('input[name="first_serve"]').forEach((r) => {
     r.addEventListener("change", (e) => {
-      document.getElementById("label-first-serve-a")?.classList.toggle("active", e.target.value === "A");
-      document.getElementById("label-first-serve-b")?.classList.toggle("active", e.target.value === "B");
+      pillA?.classList.toggle("active", e.target.value === "A");
+      pillB?.classList.toggle("active", e.target.value === "B");
     });
   });
 
+  if (pillA && radioA) {
+    pillA.addEventListener("click", () => {
+      radioA.checked = true;
+      pillA.classList.add("active");
+      pillB?.classList.remove("active");
+    });
+  }
+  if (pillB && radioB) {
+    pillB.addEventListener("click", () => {
+      radioB.checked = true;
+      pillB.classList.add("active");
+      pillA?.classList.remove("active");
+    });
+  }
+
+  syncBoardOrder();
   renderScoreboard();
 }
 
@@ -2022,7 +2061,11 @@ function renderScoreboard() {
   const bIsGamePoint = isPointPotentialWin(scoreState.teamB.score, scoreState.teamA.score, scoreState.maxPoints);
 
   if (pointBannerEl) {
-    if (aIsGamePoint && aCanWinMatch) {
+    if (scoreState.isMatchOver) {
+      const matchWinner = scoreState.teamA.sets >= neededSetsToWin ? scoreState.teamA.name : scoreState.teamB.name;
+      pointBannerEl.textContent = `🏆 ${matchWinner.toUpperCase()} THẮNG CHUNG CUỘC`;
+      pointBannerEl.classList.remove("hidden");
+    } else if (aIsGamePoint && aCanWinMatch) {
       pointBannerEl.textContent = `MATCH POINT - ${scoreState.teamA.name.toUpperCase()}`;
       pointBannerEl.classList.remove("hidden");
     } else if (bIsGamePoint && bCanWinMatch) {
@@ -2051,12 +2094,21 @@ function isPointPotentialWin(leaderScore, followerScore, maxPoints) {
 }
 
 function addScore(side) {
+  if (scoreState.isMatchOver) {
+    if (confirm("Trận đấu trước đã kết thúc. Bạn có muốn làm mới bảng điểm (0 - 0) để bắt đầu trận mới không?")) {
+      resetMatch();
+    }
+    return;
+  }
+
   // Push state to history for undo
   scoreState.history.push({
     teamA: { ...scoreState.teamA },
     teamB: { ...scoreState.teamB },
     currentSet: scoreState.currentSet,
     serving: scoreState.serving,
+    isSwapped: scoreState.isSwapped,
+    isMatchOver: scoreState.isMatchOver,
   });
 
   if (side === "A") {
@@ -2096,28 +2148,32 @@ function checkSetWinner() {
     else scoreState.teamB.sets++;
 
     const neededSetsToWin = Math.ceil(scoreState.targetSets / 2);
-    const matchWinner =
-      scoreState.teamA.sets >= neededSetsToWin
-        ? scoreState.teamA.name
-        : scoreState.teamB.sets >= neededSetsToWin
-        ? scoreState.teamB.name
-        : null;
+    const isMatchWon =
+      scoreState.teamA.sets >= neededSetsToWin ||
+      scoreState.teamB.sets >= neededSetsToWin;
 
-    if (matchWinner) {
+    if (isMatchWon) {
+      const matchWinner =
+        scoreState.teamA.sets >= neededSetsToWin
+          ? scoreState.teamA.name
+          : scoreState.teamB.name;
+      scoreState.isMatchOver = true;
+      renderScoreboard();
       setTimeout(() => {
-        alert(`🏆 CHÚC MỪNG!\n\n${matchWinner} đã THẮNG CHUNG CUỘC với tỷ số ván ${scoreState.teamA.sets} - ${scoreState.teamB.sets}!`);
-      }, 100);
+        alert(`🏆 CHÚC MỪNG!\n\n${matchWinner} đã THẮNG CHUNG CUỘC với tỷ số ván ${scoreState.teamA.sets} - ${scoreState.teamB.sets}!\n\nNhấn OK để làm mới trận đấu mới.`);
+        resetMatch();
+      }, 150);
     } else {
       setTimeout(() => {
         if (confirm(`🎉 ${winningName} thắng Ván ${scoreState.currentSet} (${finalScore})!\n\nBắt đầu Ván ${scoreState.currentSet + 1} và đổi sân?`)) {
           swapSides();
-          scoreState.currentSet++;
-          scoreState.teamA.score = 0;
-          scoreState.teamB.score = 0;
-          scoreState.serving = winner; // winning team serves first in next game
-          renderScoreboard();
         }
-      }, 100);
+        scoreState.currentSet++;
+        scoreState.teamA.score = 0;
+        scoreState.teamB.score = 0;
+        scoreState.serving = winner; // winning team serves first in next game
+        renderScoreboard();
+      }, 150);
     }
   }
 }
@@ -2132,33 +2188,31 @@ function undoScore() {
   scoreState.teamB = prev.teamB;
   scoreState.currentSet = prev.currentSet;
   scoreState.serving = prev.serving;
+  if (prev.isSwapped !== undefined) scoreState.isSwapped = prev.isSwapped;
+  scoreState.isMatchOver = prev.isMatchOver || false;
+  syncBoardOrder();
   renderScoreboard();
   showToast("Đã hoàn tác 1 điểm.");
 }
 
 function swapSides() {
   scoreState.isSwapped = !scoreState.isSwapped;
-  const board = document.getElementById("sb-board-grid");
-  const sideA = document.getElementById("sb-side-a");
-  const sideB = document.getElementById("sb-side-b");
-  if (board && sideA && sideB) {
-    if (scoreState.isSwapped) {
-      sideA.style.order = "3";
-      sideB.style.order = "1";
-    } else {
-      sideA.style.order = "1";
-      sideB.style.order = "3";
-    }
-  }
+  syncBoardOrder();
   showToast("Đã đổi sân thi đấu ⇄");
 }
 
 function resetSet() {
+  if (scoreState.isMatchOver) {
+    resetMatch();
+    return;
+  }
   scoreState.history.push({
     teamA: { ...scoreState.teamA },
     teamB: { ...scoreState.teamB },
     currentSet: scoreState.currentSet,
     serving: scoreState.serving,
+    isSwapped: scoreState.isSwapped,
+    isMatchOver: scoreState.isMatchOver,
   });
   scoreState.teamA.score = 0;
   scoreState.teamB.score = 0;
@@ -2174,8 +2228,11 @@ function resetMatch() {
   scoreState.currentSet = 1;
   scoreState.history = [];
   scoreState.serving = "A";
+  scoreState.isSwapped = false;
+  scoreState.isMatchOver = false;
+  syncBoardOrder();
   renderScoreboard();
-  showToast("Đã tạo trận đấu mới (0 - 0).");
+  showToast("Đã làm mới trận đấu (0 - 0).");
 }
 
 function toggleScoreboardFullscreen() {
@@ -2207,11 +2264,21 @@ function openScoreboardSettings() {
   const inputB = document.getElementById("input-sb-team-b");
   const selectPts = document.getElementById("select-sb-points");
   const selectSets = document.getElementById("select-sb-sets");
+  const radioA = document.querySelector('input[name="first_serve"][value="A"]');
+  const radioB = document.querySelector('input[name="first_serve"][value="B"]');
+  const pillA = document.getElementById("label-first-serve-a");
+  const pillB = document.getElementById("label-first-serve-b");
 
   if (inputA) inputA.value = scoreState.teamA.name;
   if (inputB) inputB.value = scoreState.teamB.name;
   if (selectPts) selectPts.value = String(scoreState.maxPoints);
   if (selectSets) selectSets.value = String(scoreState.targetSets);
+
+  const isA = scoreState.serving === "A";
+  if (radioA) radioA.checked = isA;
+  if (radioB) radioB.checked = !isA;
+  pillA?.classList.toggle("active", isA);
+  pillB?.classList.toggle("active", !isA);
 
   openModal("modal-scoreboard-settings");
 }

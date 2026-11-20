@@ -3037,13 +3037,75 @@ textarea:focus {
 }
 
 /* Center Divider & Info */
+.sb-side-a {
+  order: 1;
+}
+
 .sb-divider-col {
+  order: 2 !important;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 0 4px;
+}
+
+.sb-side-b {
+  order: 3;
+}
+
+/* Scoreboard Settings Radio Group: centered and comfortable */
+.sb-radio-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.sb-radio-pill {
+  flex: 1 1 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 46px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.sb-radio-pill input[type="radio"] {
+  display: none !important;
+}
+
+.sb-radio-pill span {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.sb-radio-pill:hover {
+  background: #e2e8f0;
+}
+
+.sb-radio-pill.active {
+  background: #ecfdf5 !important;
+  border-color: #059669 !important;
+  color: #065f46 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.15);
 }
 
 .sb-sets-center {

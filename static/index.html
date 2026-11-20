@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png?v=3.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=3.1" />
-  <link rel="manifest" href="/static/manifest.json?v=3.1" />
-  <link rel="stylesheet" href="/static/styles.css?v=3.1" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png?v=3.2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=3.2" />
+  <link rel="manifest" href="/static/manifest.json?v=3.2" />
+  <link rel="stylesheet" href="/static/styles.css?v=3.2" />
 </head>
 <body>
   <header class="topbar">
@@ -745,13 +745,13 @@
 
         <div class="form-group">
           <label>Bên giao cầu mở màn:</label>
-          <div class="pill-group" style="display:flex; gap:8px;">
-            <label class="pill-btn active" id="label-first-serve-a" style="flex:1; text-align:center; padding:8px; cursor:pointer;">
-              <input type="radio" name="first_serve" value="A" checked style="display:none;" />
+          <div class="sb-radio-group">
+            <label class="sb-radio-pill active" id="label-first-serve-a">
+              <input type="radio" name="first_serve" value="A" checked />
               <span>🏸 Đội A giao trước</span>
             </label>
-            <label class="pill-btn" id="label-first-serve-b" style="flex:1; text-align:center; padding:8px; cursor:pointer;">
-              <input type="radio" name="first_serve" value="B" style="display:none;" />
+            <label class="sb-radio-pill" id="label-first-serve-b">
+              <input type="radio" name="first_serve" value="B" />
               <span>🏸 Đội B giao trước</span>
             </label>
           </div>
@@ -767,6 +767,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=3.1"></script>
+  <script src="/static/app.js?v=3.2"></script>
 </body>
 </html>
