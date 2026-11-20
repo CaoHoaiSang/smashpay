@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -91,6 +91,7 @@ class ExpenseIn(BaseModel):
 
 class SettlementToggle(BaseModel):
     is_paid: bool
+    paid_at: Optional[str] = None
 
 
 # ---------- Internal Helpers ----------
@@ -716,7 +717,10 @@ def toggle_settlement(settlement_id: int, payload: SettlementToggle):
         if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy giao dịch.")
         session_id = row["session_id"]
-        paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if payload.is_paid else None
+        if payload.is_paid:
+            paid_at = payload.paid_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            paid_at = None
         cur.execute(
             "UPDATE settlements SET is_paid = ?, paid_at = ? WHERE id = ?",
             (1 if payload.is_paid else 0, paid_at, settlement_id),

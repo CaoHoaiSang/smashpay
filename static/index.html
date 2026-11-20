@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png?v=3.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=3.2" />
-  <link rel="manifest" href="/static/manifest.json?v=3.2" />
-  <link rel="stylesheet" href="/static/styles.css?v=3.2" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png?v=3.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=3.3" />
+  <link rel="manifest" href="/static/manifest.json?v=3.3" />
+  <link rel="stylesheet" href="/static/styles.css?v=3.3" />
 </head>
 <body>
   <header class="topbar">
@@ -324,6 +324,10 @@
             <span class="sb-set-badge" id="sb-set-badge">Ván 1</span>
           </div>
           <div class="sb-actions-top">
+            <button type="button" class="btn btn-secondary btn-xs sb-btn-voice" id="btn-sb-voice" title="Bật/Tắt tính năng cập nhật điểm bằng giọng nói qua micro">
+              <span class="sb-voice-dot" id="sb-voice-dot"></span>
+              <span id="sb-voice-label">🎙️ Micro: Tắt</span>
+            </button>
             <button type="button" class="btn btn-secondary btn-xs" id="btn-sb-settings" title="Cài đặt trận đấu">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span>Đổi tên / Ván</span>
@@ -333,6 +337,12 @@
               <span id="sb-fullscreen-label">Toàn màn hình ngang</span>
             </button>
           </div>
+        </div>
+
+        <!-- Live Voice Speech Recognition Feedback Banner -->
+        <div class="sb-voice-banner hidden" id="sb-voice-banner">
+          <span class="sb-voice-badge">🎙️ ĐANG NGHE</span>
+          <span class="sb-voice-text" id="sb-voice-text">Nói "6 4", "10 8", "0 8", "Đội A", "Đổi sân"...</span>
         </div>
 
         <!-- Scoreboard Arena Board: Split Left (Team A) & Right (Team B) -->
@@ -767,6 +777,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=3.2"></script>
+  <script src="/static/app.js?v=3.3"></script>
 </body>
 </html>

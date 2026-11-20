@@ -3117,6 +3117,92 @@ textarea:focus {
   min-width: 72px;
 }
 
+/* Voice Recognition Button & Live Feedback Banner */
+.sb-btn-voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.sb-btn-voice.is-listening {
+  background: #0f172a !important;
+  border-color: #ef4444 !important;
+  color: #f87171 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.sb-voice-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  display: inline-block;
+  transition: background 0.2s ease;
+}
+
+.sb-btn-voice.is-listening .sb-voice-dot {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+.sb-voice-banner {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #38bdf8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: all 0.25s ease;
+}
+
+.sb-voice-banner.sb-voice-updated {
+  background: rgba(6, 78, 59, 0.95) !important;
+  border-color: #059669 !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 0 14px rgba(5, 150, 105, 0.4) !important;
+}
+
+.sb-voice-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  white-space: nowrap;
+}
+
+.sb-voice-banner.sb-voice-updated .sb-voice-badge {
+  background: rgba(5, 150, 105, 0.35);
+  color: #a7f3d0;
+  border-color: #10b981;
+}
+
+.sb-voice-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 .sb-set-title {
   font-size: 9.5px;
   font-weight: 800;

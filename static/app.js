@@ -120,6 +120,22 @@ function formatSigned(n) {
   return (num > 0 ? "+" : "") + vnd(num);
 }
 
+function formatPaidTime(str) {
+  if (!str) return "";
+  let iso = String(str).trim();
+  if (!iso.includes("T") && !iso.endsWith("Z")) {
+    iso = iso.replace(" ", "T") + "Z";
+  }
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return str;
+  const hours = String(d.getHours()).padStart(2, "0");
+  const mins = String(d.getMinutes()).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${hours}:${mins} · ${day}/${month}/${year}`;
+}
+
 function readMoneyInput(id, fallback) {
   const raw = document.getElementById(id).value;
   if (String(raw).trim() === "") return fallback;
@@ -516,7 +532,7 @@ function renderSettlementsList(settlements) {
               <div class="settlement-subinfo">
                 ${
                   s.is_paid && s.paid_at
-                    ? `<span class="paid-stamp">${ICONS.check} Đã thanh toán lúc ${escapeHtml(s.paid_at)}</span>`
+                    ? `<span class="paid-stamp">${ICONS.check} Đã thanh toán lúc ${escapeHtml(formatPaidTime(s.paid_at))}</span>`
                     : hasBank
                     ? `<span class="bank-pill"><span class="bank-badge">${escapeHtml(s.to_bank_id)}</span> ${escapeHtml(s.to_account_no)}</span>`
                     : `<span class="muted small text-amber">Chưa có STK ngân hàng của ${escapeHtml(s.to_name)}</span>`
@@ -1484,9 +1500,10 @@ window.deleteExpense = async function (expenseId) {
 
 window.toggleSettlementPaid = async function (settlementId, isPaid) {
   try {
+    const clientTime = isPaid ? new Date().toISOString() : null;
     state.current = await api(`/api/settlements/${settlementId}`, {
       method: "PATCH",
-      body: JSON.stringify({ is_paid: isPaid }),
+      body: JSON.stringify({ is_paid: isPaid, paid_at: clientTime }),
     });
     renderCurrentSession();
     await loadSessions();
@@ -1534,7 +1551,7 @@ window.openQrModal = function (settlementId) {
   `;
 
   const btnPaid = document.getElementById("btn-qr-mark-paid");
-  btnPaid.textContent = s.is_paid ? "✓ Đã chuyển khoản" : "✓ Đánh dấu đã chuyển";
+  btnPaid.textContent = s.is_paid ? `✓ Đã chuyển (${formatPaidTime(s.paid_at)})` : "✓ Đánh dấu đã chuyển";
   btnPaid.disabled = Boolean(s.is_paid);
 
   openModal("modal-qr");
@@ -1956,6 +1973,7 @@ function initScoreboard() {
   const btnReset = document.getElementById("btn-sb-reset");
   const btnFullscreen = document.getElementById("btn-sb-fullscreen");
   const btnSettings = document.getElementById("btn-sb-settings");
+  const btnVoice = document.getElementById("btn-sb-voice");
   const formSettings = document.getElementById("form-scoreboard-settings");
 
   if (!sideA || !sideB) return;
@@ -1965,6 +1983,7 @@ function initScoreboard() {
 
   if (btnUndo) btnUndo.addEventListener("click", undoScore);
   if (btnSwap) btnSwap.addEventListener("click", swapSides);
+  if (btnVoice) btnVoice.addEventListener("click", toggleVoiceListening);
   if (btnNewSet) btnNewSet.addEventListener("click", () => {
     if (confirm("Bắt đầu ván đấu mới? (Điểm số hiện tại sẽ về 0-0, số ván thắng được giữ nguyên)")) {
       resetSet();
@@ -2300,6 +2319,329 @@ function submitScoreboardSettings(e) {
   closeModal("modal-scoreboard-settings");
   renderScoreboard();
   showToast("Đã cập nhật cài đặt trận đấu!");
+}
+
+// =========================================
+// SCOREBOARD VOICE RECOGNITION (NHẬN DIỆN GIỌNG NÓI CẬP NHẬT ĐIỂM)
+// =========================================
+
+const scoreVoiceState = {
+  isListening: false,
+  recognition: null,
+  reconnectTimer: null,
+};
+
+function playVoiceChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.13);
+  } catch (e) {}
+}
+
+function parseVoiceScore(rawText, curA, curB, nameA, nameB) {
+  let text = (rawText || "").toLowerCase().trim();
+  if (!text) return null;
+
+  // 1. Control commands
+  if (/(hoàn tác|quay lại|lùi lại|trừ điểm|bỏ điểm|undo)/i.test(text)) {
+    return { action: "undo", desc: "Hoàn tác 1 điểm" };
+  }
+  if (/(đổi sân|đổi bên|swap)/i.test(text)) {
+    return { action: "swap", desc: "Đổi sân thi đấu" };
+  }
+  if (/(làm mới|trận mới|về không)/i.test(text)) {
+    return { action: "reset", desc: "Làm mới trận đấu" };
+  }
+
+  // 2. Relative point for team: 'đội a', 'bên a', 'a được điểm', 'điểm a' or custom team names
+  const cleanNameA = (nameA || "").trim().toLowerCase();
+  const cleanNameB = (nameB || "").trim().toLowerCase();
+  const matchA =
+    /(đội a|bên a|điểm a|cho a|cộng a|a thắng|a điểm|^a$)/i.test(text) ||
+    (cleanNameA && cleanNameA !== "đội a" && text.includes(cleanNameA));
+  const matchB =
+    /(đội b|bên b|điểm b|cho b|cộng b|b thắng|b điểm|^b$)/i.test(text) ||
+    (cleanNameB && cleanNameB !== "đội b" && text.includes(cleanNameB));
+
+  if (matchA && !matchB) return { action: "add_A", desc: `Điểm cho ${nameA || "Đội A"}` };
+  if (matchB && !matchA) return { action: "add_B", desc: `Điểm cho ${nameB || "Đội B"}` };
+
+  // 3. 'X đều' (e.g. '8 đều', 'tám đều', '10 đều')
+  const matchDeu = text.match(/(\d+|không|một|mốt|hai|ba|bốn|tư|năm|lăm|sáu|bảy|bẩy|tám|chín|mười)\s*đều/i);
+  if (matchDeu) {
+    const word = matchDeu[1];
+    const numMap = { không: 0, một: 1, mốt: 1, hai: 2, ba: 3, bốn: 4, tư: 4, năm: 5, lăm: 5, sáu: 6, bảy: 7, bẩy: 7, tám: 8, chín: 9, mười: 10 };
+    const n = isNaN(word) ? numMap[word] : parseInt(word, 10);
+    if (!isNaN(n) && n >= 0 && n <= 30) {
+      return { action: "set_score", scoreA: n, scoreB: n, desc: `${n} đều` };
+    }
+  }
+
+  // 4. Convert Vietnamese words to numbers
+  let s = text.replace(/[,.-]/g, " ").replace(/\s+/g, " ").trim();
+
+  s = s.replace(/\b(zezo|dê\s*rô|dzero|dêro)\b/g, "0");
+  s = s.replace(/\b(ba\s*mươi|ba\s*chục)\b/g, "30");
+  s = s.replace(/\b(hai\s*mươi\s*chín|hai\s*chín)\b/g, "29");
+  s = s.replace(/\b(hai\s*mươi\s*tám|hai\s*tám)\b/g, "28");
+  s = s.replace(/\b(hai\s*mươi\s*bảy|hai\s*mươi\s*bẩy|hai\s*bảy|hai\s*bẩy)\b/g, "27");
+  s = s.replace(/\b(hai\s*mươi\s*sáu|hai\s*sáu)\b/g, "26");
+  s = s.replace(/\b(hai\s*mươi\s*lăm|hai\s*mươi\s*năm|hai\s*lăm|hai\s*năm)\b/g, "25");
+  s = s.replace(/\b(hai\s*mươi\s*bốn|hai\s*mươi\s*tư|hai\s*bốn|hai\s*tư)\b/g, "24");
+  s = s.replace(/\b(hai\s*mươi\s*ba|hai\s*ba)\b/g, "23");
+  s = s.replace(/\b(hai\s*mươi\s*hai|hai\s*hai)\b/g, "22");
+  s = s.replace(/\b(hai\s*mươi\s*mốt|hai\s*mốt)\b/g, "21");
+  s = s.replace(/\b(hai\s*mươi|hai\s*chục)\b/g, "20");
+
+  // Handle 'mười' followed by digit (in badminton call 'mười tám' = 10 8)
+  s = s.replace(/\bmười\s+(không|một|mốt|hai|ba|bốn|tư|năm|lăm|sáu|bảy|bẩy|tám|chín|\d)\b/g, "10 $1");
+
+  s = s.replace(/\b(mười\s*chín)\b/g, "19");
+  s = s.replace(/\b(mười\s*tám)\b/g, "18");
+  s = s.replace(/\b(mười\s*bảy|mười\s*bẩy)\b/g, "17");
+  s = s.replace(/\b(mười\s*sáu)\b/g, "16");
+  s = s.replace(/\b(mười\s*lăm|mười\s*năm)\b/g, "15");
+  s = s.replace(/\b(mười\s*bốn|mười\s*tư)\b/g, "14");
+  s = s.replace(/\b(mười\s*ba)\b/g, "13");
+  s = s.replace(/\b(mười\s*hai)\b/g, "12");
+  s = s.replace(/\b(mười\s*một|mười\s*mốt)\b/g, "11");
+  s = s.replace(/\bmười\b/g, "10");
+
+  s = s.replace(/\b(không|khong)\b/g, "0");
+  s = s.replace(/\b(một|mot|mốt)\b/g, "1");
+  s = s.replace(/\b(hai)\b/g, "2");
+  s = s.replace(/\b(ba)\b/g, "3");
+  s = s.replace(/\b(bốn|bon|tư)\b/g, "4");
+  s = s.replace(/\b(năm|nam|lăm)\b/g, "5");
+  s = s.replace(/\b(sáu|sau)\b/g, "6");
+  s = s.replace(/\b(bảy|bay|bẩy)\b/g, "7");
+  s = s.replace(/\b(tám|tam)\b/g, "8");
+  s = s.replace(/\b(chín|chin)\b/g, "9");
+
+  const nums = (s.match(/\d+/g) || []).map((n) => parseInt(n, 10));
+
+  if (nums.length >= 2) {
+    let [n1, n2] = [nums[0], nums[1]];
+
+    // Smart rollover: e.g. previous was 9 8, spoken is '0 8' -> 10 8
+    if (n1 === 0 && (curA === 9 || curA % 10 === 9)) {
+      n1 = curA + 1;
+    } else if (n2 === 0 && (curB === 9 || curB % 10 === 9)) {
+      n2 = curB + 1;
+    }
+
+    if (n1 >= 0 && n1 <= 30 && n2 >= 0 && n2 <= 30) {
+      if ((n1 === curA + 1 && n2 === curB) || (n1 === curA && n2 === curB + 1)) {
+        return { action: "set_score", scoreA: n1, scoreB: n2, winnerSide: n1 === curA + 1 ? "A" : "B" };
+      }
+      if ((n2 === curA + 1 && n1 === curB) || (n2 === curA && n1 === curB + 1)) {
+        return { action: "set_score", scoreA: n2, scoreB: n1, winnerSide: n2 === curA + 1 ? "A" : "B" };
+      }
+      return { action: "set_score", scoreA: n1, scoreB: n2, winnerSide: n1 > curA ? "A" : n2 > curB ? "B" : null };
+    }
+  }
+
+  // If only 1 number was heard, e.g. '18' when previous was 9 8:
+  if (nums.length === 1) {
+    const n = nums[0];
+    if (n >= 10 && n <= 19 && curA === 9 && curB === (n % 10)) {
+      return { action: "set_score", scoreA: 10, scoreB: n % 10, winnerSide: "A" };
+    }
+    if (n >= 10 && n <= 19 && curB === 9 && curA === (n % 10)) {
+      return { action: "set_score", scoreA: n % 10, scoreB: 10, winnerSide: "B" };
+    }
+  }
+
+  return null;
+}
+
+function handleVoiceTranscript(rawText) {
+  const bannerText = document.getElementById("sb-voice-text");
+  if (!rawText || !rawText.trim()) return;
+
+  const parsed = parseVoiceScore(
+    rawText,
+    scoreState.teamA.score,
+    scoreState.teamB.score,
+    scoreState.teamA.name,
+    scoreState.teamB.name
+  );
+
+  if (!parsed) {
+    if (bannerText) bannerText.textContent = `Đã nghe: "${rawText}" (chưa nhận diện được điểm)`;
+    return;
+  }
+
+  if (scoreState.isMatchOver && parsed.action !== "reset") {
+    if (bannerText) bannerText.textContent = `Trận đấu đã kết thúc. Hãy nói "Trận mới" để làm mới.`;
+    return;
+  }
+
+  if (parsed.action === "undo") {
+    undoScore();
+    showVoiceBannerNotice(`Đã hoàn tác (-1 điểm) qua giọng nói`);
+    return;
+  }
+
+  if (parsed.action === "swap") {
+    swapSides();
+    showVoiceBannerNotice(`Đã đổi sân ⇄ qua giọng nói`);
+    return;
+  }
+
+  if (parsed.action === "reset") {
+    resetMatch();
+    showVoiceBannerNotice(`Đã làm mới trận đấu qua giọng nói`);
+    return;
+  }
+
+  if (parsed.action === "add_A") {
+    addScore("A");
+    showVoiceBannerNotice(`🎙️ "${rawText}" → +1 cho ${scoreState.teamA.name} (${scoreState.teamA.score} - ${scoreState.teamB.score})`);
+    return;
+  }
+
+  if (parsed.action === "add_B") {
+    addScore("B");
+    showVoiceBannerNotice(`🎙️ "${rawText}" → +1 cho ${scoreState.teamB.name} (${scoreState.teamA.score} - ${scoreState.teamB.score})`);
+    return;
+  }
+
+  if (parsed.action === "set_score") {
+    // Push state to history for undo
+    scoreState.history.push({
+      teamA: { ...scoreState.teamA },
+      teamB: { ...scoreState.teamB },
+      currentSet: scoreState.currentSet,
+      serving: scoreState.serving,
+      isSwapped: scoreState.isSwapped,
+      isMatchOver: scoreState.isMatchOver,
+    });
+
+    scoreState.teamA.score = parsed.scoreA;
+    scoreState.teamB.score = parsed.scoreB;
+    if (parsed.winnerSide) {
+      scoreState.serving = parsed.winnerSide;
+    }
+
+    showVoiceBannerNotice(`🎙️ "${rawText}" → Cập nhật: ${scoreState.teamA.score} - ${scoreState.teamB.score}`);
+    playVoiceChime();
+    if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
+
+    checkSetWinner();
+    renderScoreboard();
+  }
+}
+
+function showVoiceBannerNotice(msg) {
+  const banner = document.getElementById("sb-voice-banner");
+  const bannerText = document.getElementById("sb-voice-text");
+  if (!banner || !bannerText) return;
+
+  banner.classList.remove("hidden");
+  banner.classList.add("sb-voice-updated");
+  bannerText.textContent = msg;
+
+  setTimeout(() => {
+    banner.classList.remove("sb-voice-updated");
+    if (scoreVoiceState.isListening) {
+      bannerText.textContent = `Đang lắng nghe: nói "6 4", "10 8", "0 8", "Đội A", "Đổi sân"...`;
+    }
+  }, 2600);
+}
+
+function toggleVoiceListening() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btnVoice = document.getElementById("btn-sb-voice");
+  const label = document.getElementById("sb-voice-label");
+  const banner = document.getElementById("sb-voice-banner");
+  const bannerText = document.getElementById("sb-voice-text");
+
+  if (!SpeechRecognition) {
+    alert("Trình duyệt hiện tại chưa hỗ trợ Web Speech API micro. Bạn nên mở bằng Google Chrome hoặc Safari trên điện thoại để dùng tính năng này.");
+    return;
+  }
+
+  scoreVoiceState.isListening = !scoreVoiceState.isListening;
+
+  if (scoreVoiceState.isListening) {
+    if (!scoreVoiceState.recognition) {
+      const r = new SpeechRecognition();
+      r.continuous = true;
+      r.interimResults = false;
+      r.lang = "vi-VN";
+
+      r.onresult = (event) => {
+        const lastResult = event.results[event.results.length - 1];
+        if (lastResult && lastResult[0]) {
+          const transcript = lastResult[0].transcript;
+          handleVoiceTranscript(transcript);
+        }
+      };
+
+      r.onerror = (e) => {
+        if (e.error === "not-allowed") {
+          alert("Quyền truy cập micro đã bị từ chối. Vui lòng cấp quyền Micro trong cài đặt trình duyệt để SmashPay nghe điểm.");
+          stopVoiceListening();
+        }
+      };
+
+      r.onend = () => {
+        if (scoreVoiceState.isListening) {
+          clearTimeout(scoreVoiceState.reconnectTimer);
+          scoreVoiceState.reconnectTimer = setTimeout(() => {
+            try {
+              scoreVoiceState.recognition.start();
+            } catch (err) {}
+          }, 250);
+        }
+      };
+
+      scoreVoiceState.recognition = r;
+    }
+
+    try {
+      scoreVoiceState.recognition.start();
+      playVoiceChime();
+    } catch (e) {}
+
+    if (btnVoice) btnVoice.classList.add("is-listening");
+    if (label) label.textContent = "🎙️ Micro: BẬT";
+    if (banner) banner.classList.remove("hidden");
+    if (bannerText) bannerText.textContent = `Đang lắng nghe: nói "6 4", "10 8", "0 8", "Đội A", "Đổi sân"...`;
+    showToast("Đã bật nhận diện giọng nói qua Micro!");
+  } else {
+    stopVoiceListening();
+    showToast("Đã tắt nhận diện giọng nói qua Micro.");
+  }
+}
+
+function stopVoiceListening() {
+  scoreVoiceState.isListening = false;
+  clearTimeout(scoreVoiceState.reconnectTimer);
+  if (scoreVoiceState.recognition) {
+    try {
+      scoreVoiceState.recognition.stop();
+    } catch (e) {}
+  }
+  const btnVoice = document.getElementById("btn-sb-voice");
+  const label = document.getElementById("sb-voice-label");
+  const banner = document.getElementById("sb-voice-banner");
+  if (btnVoice) btnVoice.classList.remove("is-listening");
+  if (label) label.textContent = "🎙️ Micro: Tắt";
+  if (banner) banner.classList.add("hidden");
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
