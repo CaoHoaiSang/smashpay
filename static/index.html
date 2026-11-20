@@ -15,9 +15,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=4.1" />
+  <link rel="stylesheet" href="/static/styles.css?v=4.3" />
 </head>
 <body>
+  <div id="group-gate" class="group-gate hidden">
+    <div class="group-gate-card">
+      <div class="brand-title-row">
+        <h2>SmashPay</h2>
+        <span class="brand-badge-pro">PRO</span>
+      </div>
+      <p class="muted">Mỗi nhóm có sổ riêng. Mã mời để bạn cùng chơi ghi buổi. Mã chủ nhóm để lấy lại quyền chủ trên máy khác.</p>
+      <div id="group-gate-error" class="warning-banner hidden"></div>
+      <div id="group-claim-box" class="group-claim-box hidden">
+        <p>Sổ đang dùng trên máy này chưa có chủ. Nhận sổ để giữ nguyên thành viên và các buổi đánh.</p>
+        <button id="btn-claim-legacy" class="btn btn-primary btn-gradient" type="button">Nhận sổ cũ</button>
+      </div>
+      <form id="form-create-group">
+        <label for="group-create-name">Tên nhóm mới</label>
+        <input id="group-create-name" type="text" maxlength="80" placeholder="Ví dụ: Cầu tối thứ 4" required />
+        <button class="btn btn-primary btn-gradient" type="submit">Tạo nhóm</button>
+      </form>
+      <div class="group-divider">hoặc</div>
+      <form id="form-join-group">
+        <label for="group-join-code">Mã mời hoặc mã chủ nhóm</label>
+        <input id="group-join-code" type="text" maxlength="20" placeholder="Nhập mã" required autocapitalize="characters" autocomplete="off" />
+        <button class="btn btn-secondary" type="submit">Vào nhóm</button>
+      </form>
+    </div>
+  </div>
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
@@ -50,6 +75,19 @@
           <span class="nav-tab-text">Bảng điểm</span>
         </button>
       </nav>
+    </div>
+    <div id="group-bar" class="group-bar hidden">
+      <div class="group-bar-main">
+        <strong id="group-bar-name"></strong>
+        <span id="group-bar-role" class="badge badge-neutral"></span>
+      </div>
+      <div class="group-bar-codes">
+        <span>Mã mời <code id="group-invite-code"></code></span>
+        <button id="btn-copy-invite" class="btn btn-secondary btn-xs" type="button">Sao chép</button>
+        <span class="owner-only">Mã chủ <code id="group-owner-code"></code></span>
+        <button id="btn-copy-owner" class="btn btn-secondary btn-xs owner-only" type="button">Sao chép mã chủ</button>
+        <button id="btn-leave-group" class="btn btn-secondary btn-xs" type="button">Rời nhóm</button>
+      </div>
     </div>
   </header>
 
@@ -96,7 +134,7 @@
             </div>
             <div class="header-actions">
               <button class="btn btn-secondary btn-sm" id="btn-clone-session" type="button">Giống buổi này</button>
-              <button class="btn btn-secondary btn-sm" id="btn-toggle-template" type="button">Đặt làm mẫu</button>
+              <button class="btn btn-secondary btn-sm owner-only" id="btn-toggle-template" type="button">Đặt làm mẫu</button>
               <button class="btn btn-secondary btn-sm" id="btn-edit-session">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 <span>Sửa buổi</span>
@@ -923,6 +961,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=4.1"></script>
+  <script src="/static/app.js?v=4.3"></script>
 </body>
 </html>

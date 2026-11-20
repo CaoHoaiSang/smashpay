@@ -1,7 +1,15 @@
 import os
+import secrets
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
+
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def make_code(length: int) -> str:
+    return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(length))
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
@@ -142,3 +150,79 @@ def init_db() -> None:
             cur.execute("ALTER TABLE sessions ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+
+        cur.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                invite_code TEXT NOT NULL UNIQUE,
+                owner_code TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS access_tokens (
+                token TEXT PRIMARY KEY,
+                group_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+            );
+            """
+        )
+        try:
+            cur.execute("ALTER TABLE members ADD COLUMN group_id INTEGER REFERENCES groups(id)")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cur.execute("ALTER TABLE sessions ADD COLUMN group_id INTEGER REFERENCES groups(id)")
+        except sqlite3.OperationalError:
+            pass
+        _attach_legacy_rows(cur)
+
+
+def _attach_legacy_rows(cur) -> None:
+    """Put existing rows that predate groups into one private ledger."""
+    cur.execute("SELECT COUNT(*) AS n FROM members WHERE group_id IS NULL")
+    loose_members = cur.fetchone()["n"]
+    cur.execute("SELECT COUNT(*) AS n FROM sessions WHERE group_id IS NULL")
+    loose_sessions = cur.fetchone()["n"]
+    if loose_members == 0 and loose_sessions == 0:
+        return
+    cur.execute("SELECT id FROM groups ORDER BY id ASC LIMIT 1")
+    existing = cur.fetchone()
+    if existing:
+        group_id = existing["id"]
+    else:
+        cur.execute(
+            "INSERT INTO groups (name, invite_code, owner_code) VALUES (?, ?, ?)",
+            ("Nhóm của tôi", make_code(6), make_code(10)),
+        )
+        group_id = cur.lastrowid
+    cur.execute("UPDATE members SET group_id = ? WHERE group_id IS NULL", (group_id,))
+    cur.execute("UPDATE sessions SET group_id = ? WHERE group_id IS NULL", (group_id,))
+
+
+def backup_db_daily() -> None:
+    if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+        return
+    folder = DATA_DIR / "backups"
+    folder.mkdir(parents=True, exist_ok=True)
+    dest = folder / f"badminton-{datetime.now().strftime('%Y%m%d')}.db"
+    if dest.exists():
+        _trim_backups(folder)
+        return
+    source = sqlite3.connect(DB_PATH)
+    target = sqlite3.connect(dest)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+        source.close()
+    _trim_backups(folder)
+
+
+def _trim_backups(folder: Path) -> None:
+    files = sorted(folder.glob("badminton-*.db"))
+    for old in files[:-14]:
+        old.unlink(missing_ok=True)

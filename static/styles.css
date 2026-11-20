@@ -3776,3 +3776,120 @@ textarea:focus {
     font-size: 11.5px !important;
   }
 }
+
+body:not(.is-owner) .owner-only {
+  display: none !important;
+}
+
+body.group-locked .topbar,
+body.group-locked .container,
+body.group-locked .nav-tabs-mobile {
+  pointer-events: none;
+}
+
+.group-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000001;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px;
+  overflow: auto;
+  background:
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 46%),
+    var(--bg);
+}
+
+.group-gate-card {
+  width: min(440px, 100%);
+  margin-top: 4vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 22px 20px 18px;
+}
+
+.group-gate-card h2 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.group-gate-card > p {
+  margin: 10px 0 0;
+}
+
+.group-gate form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.group-gate form .btn,
+.group-claim-box .btn {
+  width: 100%;
+}
+
+.group-claim-box {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  border: 1px solid #a7f3d0;
+}
+
+.group-claim-box p {
+  margin: 0 0 10px;
+}
+
+.group-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.group-divider::before,
+.group-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.group-bar {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.group-bar-main,
+.group-bar-codes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-bar-codes {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.group-bar code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  padding: 2px 6px;
+  border-radius: 6px;
+}

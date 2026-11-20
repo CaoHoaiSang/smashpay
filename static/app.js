@@ -93,7 +93,10 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+const GROUP_TOKEN_KEY = "smashpay.groupToken";
+
 const state = {
+  group: null,
   members: [],
   hiddenMembers: [],
   sessions: [],
@@ -196,20 +199,238 @@ function showToast(msg) {
   showToast._t = setTimeout(() => el.classList.add("hidden"), 2600);
 }
 
+function groupToken() {
+  return localStorage.getItem(GROUP_TOKEN_KEY) || "";
+}
+
+function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  const token = groupToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function errorDetail(data, fallback) {
+  if (data && typeof data.detail === "string" && data.detail) return data.detail;
+  return fallback;
+}
+
 async function api(url, options = {}) {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const headers = authHeaders({ "Content-Type": "application/json", ...(options.headers || {}) });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    dropGroupAccess();
+    throw new Error("Hãy vào nhóm trước.");
+  }
   if (!res.ok) {
     let msg = "Có lỗi xảy ra";
     try {
       const err = await res.json();
-      msg = err.detail || msg;
+      msg = errorDetail(err, msg);
     } catch (_) {}
     throw new Error(msg);
   }
   return res.json();
+}
+
+function showGroupError(message) {
+  const el = document.getElementById("group-gate-error");
+  if (!el) return;
+  if (!message) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = message;
+  el.classList.remove("hidden");
+}
+
+function renderGroupBar() {
+  const bar = document.getElementById("group-bar");
+  const group = state.group;
+  if (!bar) return;
+  if (!group) {
+    bar.classList.add("hidden");
+    document.body.classList.remove("is-owner");
+    return;
+  }
+  bar.classList.remove("hidden");
+  document.body.classList.toggle("is-owner", group.role === "owner");
+  document.getElementById("group-bar-name").textContent = group.name;
+  document.getElementById("group-bar-role").textContent = group.role === "owner" ? "Chủ nhóm" : "Thành viên";
+  document.getElementById("group-invite-code").textContent = group.invite_code || "";
+  const ownerCode = document.getElementById("group-owner-code");
+  if (ownerCode) ownerCode.textContent = group.owner_code || "";
+}
+
+function setAppLocked(locked) {
+  document.body.classList.toggle("group-locked", locked);
+  document.querySelectorAll("header.topbar, main.container, .nav-tabs-mobile").forEach((el) => {
+    if (locked) el.setAttribute("inert", "");
+    else el.removeAttribute("inert");
+  });
+}
+
+async function openGroupGate() {
+  const gate = document.getElementById("group-gate");
+  if (gate) gate.classList.remove("hidden");
+  setAppLocked(true);
+  const claim = document.getElementById("group-claim-box");
+  try {
+    const res = await fetch("/api/groups/status");
+    const data = await res.json();
+    if (claim) claim.classList.toggle("hidden", !data.legacy_unclaimed);
+  } catch (_) {
+    if (claim) claim.classList.add("hidden");
+  }
+}
+
+function closeGroupGate() {
+  const gate = document.getElementById("group-gate");
+  if (gate) gate.classList.add("hidden");
+  setAppLocked(false);
+}
+
+function dropGroupAccess() {
+  localStorage.removeItem(GROUP_TOKEN_KEY);
+  state.group = null;
+  state.current = null;
+  state.members = [];
+  state.hiddenMembers = [];
+  state.sessions = [];
+  renderGroupBar();
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("session")) {
+    url.searchParams.delete("session");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  }
+  openGroupGate();
+}
+
+async function enterGroup() {
+  state.group = await api("/api/group");
+  renderGroupBar();
+  closeGroupGate();
+  showGroupError("");
+  await loadMembers();
+  await loadSessions();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const requestedId = Number(urlParams.get("session"));
+  if (requestedId && state.sessions.some((s) => s.id === requestedId)) {
+    await openSession(requestedId);
+  } else if (state.sessions.length > 0) {
+    await openSession(state.sessions[0].id);
+  } else {
+    state.current = null;
+    renderCurrentSession();
+  }
+}
+
+async function acceptGroupLogin(data) {
+  if (!data || !data.token) throw new Error("Không vào được nhóm.");
+  localStorage.setItem(GROUP_TOKEN_KEY, data.token);
+  await enterGroup();
+}
+
+async function copyGroupText(text, okMsg) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(okMsg);
+  } catch (_) {
+    showToast(text);
+  }
+}
+
+function bindGroupEvents() {
+  const createForm = document.getElementById("form-create-group");
+  const joinForm = document.getElementById("form-join-group");
+  const claimBtn = document.getElementById("btn-claim-legacy");
+  if (createForm) {
+    createForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showGroupError("");
+      const name = document.getElementById("group-create-name").value.trim();
+      try {
+        const res = await fetch("/api/groups", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showGroupError(errorDetail(data, "Không tạo được nhóm."));
+          return;
+        }
+        await acceptGroupLogin(data);
+        showToast("Đã tạo nhóm. Gửi mã mời cho bạn cùng chơi, và giữ mã chủ để lấy lại quyền.");
+      } catch (err) {
+        showGroupError(err.message || "Không tạo được nhóm.");
+      }
+    });
+  }
+  if (joinForm) {
+    joinForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showGroupError("");
+      const code = document.getElementById("group-join-code").value.trim();
+      try {
+        const res = await fetch("/api/groups/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showGroupError(errorDetail(data, "Không vào được nhóm."));
+          return;
+        }
+        await acceptGroupLogin(data);
+        showToast(data.group && data.group.role === "owner" ? "Đã vào lại với quyền chủ nhóm." : "Đã vào nhóm.");
+      } catch (err) {
+        showGroupError(err.message || "Không vào được nhóm.");
+      }
+    });
+  }
+  if (claimBtn) {
+    claimBtn.addEventListener("click", async () => {
+      showGroupError("");
+      try {
+        const res = await fetch("/api/groups/claim-legacy", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showGroupError(errorDetail(data, "Không nhận được sổ cũ."));
+          return;
+        }
+        await acceptGroupLogin(data);
+        showToast("Đã nhận sổ cũ. Bạn là chủ nhóm.");
+      } catch (err) {
+        showGroupError(err.message || "Không nhận được sổ cũ.");
+      }
+    });
+  }
+  const copyInvite = document.getElementById("btn-copy-invite");
+  const copyOwner = document.getElementById("btn-copy-owner");
+  const leaveBtn = document.getElementById("btn-leave-group");
+  if (copyInvite) {
+    copyInvite.addEventListener("click", () => {
+      if (!state.group) return;
+      copyGroupText(state.group.invite_code, "Đã sao chép mã mời.");
+    });
+  }
+  if (copyOwner) {
+    copyOwner.addEventListener("click", () => {
+      if (!state.group || !state.group.owner_code) return;
+      copyGroupText(state.group.owner_code, "Đã sao chép mã chủ nhóm.");
+    });
+  }
+  if (leaveBtn) {
+    leaveBtn.addEventListener("click", () => {
+      if (!confirm("Rời nhóm trên máy này? Sổ vẫn giữ nguyên. Vào lại bằng mã mời hoặc mã chủ nhóm.")) return;
+      dropGroupAccess();
+    });
+  }
 }
 
 function updateBodyScrollLock() {
@@ -337,18 +558,16 @@ async function initApp() {
   populateBankSelect();
   setupCustomSelectEvents();
   bindEvents();
+  bindGroupEvents();
   initScoreboard();
-  await loadMembers();
-  await loadSessions();
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const requestedId = Number(urlParams.get("session"));
-  if (requestedId && state.sessions.some((s) => s.id === requestedId)) {
-    await openSession(requestedId);
-  } else if (state.sessions.length > 0) {
-    await openSession(state.sessions[0].id);
-  } else {
-    renderCurrentSession();
+  if (!groupToken()) {
+    await openGroupGate();
+    return;
+  }
+  try {
+    await enterGroup();
+  } catch (_) {
+    await openGroupGate();
   }
 }
 
@@ -746,7 +965,7 @@ function renderHistory() {
           <div class="history-actions" onclick="event.stopPropagation()">
             <strong style="align-self:center; margin-right:6px; color:var(--primary-dark);">${vnd(s.total_spent)}</strong>
             <button class="btn btn-secondary btn-xs" onclick="cloneSessionFrom(${s.id})">Giống buổi này</button>
-            <button class="btn btn-secondary btn-xs" onclick="toggleSessionTemplate(${s.id}, ${Number(s.is_template) === 1 ? "false" : "true"})">${Number(s.is_template) === 1 ? "Bỏ mẫu" : "Đặt làm mẫu"}</button>
+            <button class="btn btn-secondary btn-xs owner-only" onclick="toggleSessionTemplate(${s.id}, ${Number(s.is_template) === 1 ? "false" : "true"})">${Number(s.is_template) === 1 ? "Bỏ mẫu" : "Đặt làm mẫu"}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteSession(${s.id})">Xóa</button>
           </div>
         </div>
@@ -761,9 +980,9 @@ function memberCardHtml(m, hidden) {
     : "Chưa cập nhật tài khoản ngân hàng";
   const initials = getInitials(m.name);
   const actions = hidden
-    ? `<button class="btn btn-primary btn-sm" onclick="restoreMember(${m.id})">Hiện lại</button>`
+    ? `<button class="btn btn-primary btn-sm owner-only" onclick="restoreMember(${m.id})">Hiện lại</button>`
     : `<button class="btn btn-secondary btn-sm btn-icon-action" onclick="openEditMember(${m.id})">${ICONS.edit} <span>Sửa</span></button>
-       <button class="btn btn-danger btn-sm btn-icon-action" onclick="deleteMember(${m.id})">${ICONS.trash} <span>Ẩn</span></button>`;
+       <button class="btn btn-danger btn-sm btn-icon-action owner-only" onclick="deleteMember(${m.id})">${ICONS.trash} <span>Ẩn</span></button>`;
   return `
     <div class="member-card ${hidden ? "is-hidden-member" : ""}">
       <div class="member-card-main">
@@ -798,7 +1017,7 @@ function renderMembers() {
     ? state.members.map((m) => memberCardHtml(m, false)).join("")
     : `<p class="muted small">Không còn thành viên đang hiện.</p>`;
   const hiddenHtml = hidden.length
-    ? `<div class="hidden-members-block">
+    ? `<div class="hidden-members-block owner-only">
          <h3>Đã ẩn</h3>
          <p class="muted small">Những người này không hiện khi tạo buổi mới. Bấm Hiện lại để dùng tiếp. Buổi đánh cũ vẫn giữ tên họ.</p>
          ${hidden.map((m) => memberCardHtml(m, true)).join("")}
@@ -3319,10 +3538,14 @@ async function sendRecordedSpeech(chunks, sampleRate) {
   try {
     const res = await fetch("/api/voice/transcribe", {
       method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers: authHeaders({ "Content-Type": "application/octet-stream" }),
       body: pcm.buffer,
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      dropGroupAccess();
+      return;
+    }
     if (!res.ok) {
       if (document.getElementById("sb-voice-text")) {
         document.getElementById("sb-voice-text").textContent = data.detail || "Chưa nghe rõ. Nói lại tỷ số.";
