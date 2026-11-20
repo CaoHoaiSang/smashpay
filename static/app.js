@@ -301,13 +301,21 @@ function renderGroupBar() {
 
 function setAppLocked(locked) {
   document.body.classList.toggle("group-locked", locked);
-  document.querySelectorAll("header.topbar, main.container, .nav-tabs-mobile").forEach((el) => {
-    if (locked) el.setAttribute("inert", "");
-    else el.removeAttribute("inert");
-  });
+  document.body.classList.toggle("on-scoreboard", currentActiveTab === "scoreboard");
+  const container = document.querySelector("main.container");
+  if (container) {
+    if (locked && currentActiveTab !== "scoreboard") {
+      container.setAttribute("inert", "");
+    } else {
+      container.removeAttribute("inert");
+    }
+  }
 }
 
 async function openGroupGate() {
+  if (currentActiveTab === "scoreboard") {
+    return;
+  }
   const gate = document.getElementById("group-gate");
   if (gate) gate.classList.remove("hidden");
   setAppLocked(true);
@@ -801,6 +809,12 @@ function bindGroupEvents() {
       }
     });
   }
+  const gateSbBtn = document.getElementById("btn-gate-to-scoreboard");
+  if (gateSbBtn) {
+    gateSbBtn.addEventListener("click", () => {
+      switchTab("scoreboard");
+    });
+  }
   const copyInvite = document.getElementById("btn-copy-invite");
   const copyOwner = document.getElementById("btn-copy-owner");
   const leaveBtn = document.getElementById("btn-leave-group");
@@ -996,6 +1010,15 @@ function switchTab(tabName) {
     p.classList.toggle("active", p.id === `tab-${tabName}`);
   });
 
+  // Scoreboard is public and shared - no group required!
+  if (!state.group) {
+    if (tabName === "scoreboard") {
+      closeGroupGate();
+    } else {
+      openGroupGate();
+    }
+  }
+
   const targetScroll = tabScrollPositions[tabName] || 0;
   requestAnimationFrame(() => {
     try {
@@ -1144,7 +1167,17 @@ function renderCurrentSession() {
   if (templateBadge) templateBadge.classList.toggle("hidden", Number(session.is_template) !== 1);
   const templateBtn = document.getElementById("btn-toggle-template");
   if (templateBtn) {
-    templateBtn.textContent = Number(session.is_template) === 1 ? "Bỏ mẫu mặc định" : "Đặt làm mẫu";
+    const isTemplate = Number(session.is_template) === 1;
+    templateBtn.classList.toggle("is-active", isTemplate);
+    templateBtn.setAttribute("aria-pressed", isTemplate ? "true" : "false");
+    templateBtn.innerHTML = `
+      <span class="btn-template-star" aria-hidden="true">${isTemplate ? "⭐" : "☆"}</span>
+      <span class="btn-text-full">${isTemplate ? "Bỏ mẫu mặc định" : "Đặt làm mẫu"}</span>
+      <span class="btn-text-short">${isTemplate ? "Bỏ mẫu" : "Đặt mẫu"}</span>
+    `;
+    templateBtn.title = isTemplate
+      ? "Buổi này đang là mẫu mặc định. Nhấn để Tắt (Disable)"
+      : "Nhấn để Bật buổi này làm mẫu mặc định (Enable)";
   }
 
   const statusBadge = document.getElementById("sess-status-badge");
@@ -1730,7 +1763,7 @@ window.toggleSessionTemplate = async function (sessionId, makeTemplate) {
       if (fresh) state.current.session.is_template = fresh.is_template;
       renderCurrentSession();
     }
-    showToast(makeTemplate ? "Đã đặt buổi này làm mẫu mặc định." : "Đã bỏ mẫu mặc định.");
+    showToast(makeTemplate ? "Đã bật: Buổi này là mẫu mặc định cho các buổi mới." : "Đã tắt mẫu mặc định.");
   } catch (err) {
     showToast(err.message);
   }
@@ -2596,9 +2629,12 @@ function bindEvents() {
   document.getElementById("btn-empty-new-session").addEventListener("click", () => openNewSessionModal());
   document.getElementById("btn-new-session-top").addEventListener("click", () => openNewSessionModal());
   document.getElementById("btn-history-new-session").addEventListener("click", () => openNewSessionModal());
-  document.getElementById("btn-clone-session").addEventListener("click", () => {
-    if (state.current) openNewSessionModal(state.current.session.id);
-  });
+  const btnClone = document.getElementById("btn-clone-session");
+  if (btnClone) {
+    btnClone.addEventListener("click", () => {
+      if (state.current) openNewSessionModal(state.current.session.id);
+    });
+  }
   document.getElementById("btn-toggle-template").addEventListener("click", () => {
     if (!state.current) return;
     const on = Number(state.current.session.is_template) === 1;

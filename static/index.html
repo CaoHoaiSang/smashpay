@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=4.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=4.8" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=4.8" />
-  <link rel="manifest" href="/static/manifest.json?v=4.8" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=4.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=4.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=4.9" />
+  <link rel="manifest" href="/static/manifest.json?v=4.9" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=4.8" />
+  <link rel="stylesheet" href="/static/styles.css?v=4.9" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -50,13 +50,19 @@
         <input id="group-join-code" type="text" maxlength="24" placeholder="Mã mời thì chờ duyệt. Mã chủ vào thẳng." required autocapitalize="characters" autocomplete="off" />
         <button class="btn btn-secondary" type="submit">Tiếp tục</button>
       </form>
+      <div class="group-divider">hoặc</div>
+      <div class="group-gate-sb-box">
+        <button id="btn-gate-to-scoreboard" class="btn btn-gate-sb" type="button">
+          🏸 Dùng ngay Bảng điểm thi đấu (không cần nhóm)
+        </button>
+      </div>
     </div>
   </div>
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
         <div class="brand-icon-wrap">
-          <img src="/static/favicon.svg?v=4.8" alt="SmashPay Logo" class="brand-logo-img" />
+          <img src="/static/favicon.svg?v=4.9" alt="SmashPay Logo" class="brand-logo-img" />
         </div>
         <div>
           <div class="brand-title-row">
@@ -130,15 +136,20 @@
               <p id="sess-notes" class="session-notes-text"></p>
             </div>
             <div class="header-actions">
-              <button class="btn btn-secondary btn-sm" id="btn-clone-session" type="button">Giống buổi này</button>
-              <button class="btn btn-secondary btn-sm owner-only" id="btn-toggle-template" type="button">Đặt làm mẫu</button>
-              <button class="btn btn-secondary btn-sm" id="btn-edit-session">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                <span>Sửa buổi</span>
+              <button class="btn btn-secondary btn-sm btn-template-toggle owner-only" id="btn-toggle-template" type="button" title="Bật hoặc Tắt làm mẫu mặc định">
+                <span class="btn-template-star" aria-hidden="true">☆</span>
+                <span class="btn-text-full">Đặt làm mẫu</span>
+                <span class="btn-text-short">Đặt mẫu</span>
               </button>
-              <button class="btn btn-primary btn-sm btn-gradient" id="btn-new-session-top">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                <span>Buổi mới</span>
+              <button class="btn btn-secondary btn-sm" id="btn-edit-session" type="button" title="Chỉnh sửa buổi">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                <span class="btn-text-full">Sửa buổi</span>
+                <span class="btn-text-short">Sửa</span>
+              </button>
+              <button class="btn btn-primary btn-sm btn-gradient" id="btn-new-session-top" type="button" title="Tạo buổi mới">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+                <span class="btn-text-full">Buổi mới</span>
+                <span class="btn-text-short">Mới</span>
               </button>
             </div>
           </div>
@@ -1081,6 +1092,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=4.8"></script>
+  <script src="/static/app.js?v=4.9"></script>
 </body>
 </html>
