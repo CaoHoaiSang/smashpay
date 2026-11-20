@@ -640,28 +640,49 @@ function closeShareSheet() {
   if (sheet) sheet.classList.add("hidden");
 }
 
-function openZaloShare(url) {
+async function openZaloShare(url) {
   closeShareSheet();
   const msg = inviteMessage();
-  try { navigator.clipboard.writeText(`${msg}`); } catch (_) {}
-  showToast("Đã sao chép nội dung mời. Đang mở Zalo...");
-  const target = `https://zalo.me/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(msg)}`;
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    window.location.href = target;
-  } else {
-    window.open(target, "_blank", "noopener");
-  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(msg);
+    }
+  } catch (_) {}
+  showToast("Đã sao chép nội dung mời! Dán vào Zalo để gửi.");
+  setTimeout(() => {
+    const win = window.open("https://chat.zalo.me/", "_blank", "noopener,noreferrer");
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = "https://chat.zalo.me/";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }, 250);
 }
 
-function openMessengerShare(url) {
+async function openMessengerShare(url) {
   closeShareSheet();
-  try { navigator.clipboard.writeText(url); } catch (_) {}
-  showToast("Đã sao chép link mời. Đang mở Messenger...");
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    window.location.href = `fb-messenger://share/?link=${encodeURIComponent(url)}`;
-  } else {
-    window.open("https://www.messenger.com", "_blank", "noopener");
-  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    }
+  } catch (_) {}
+  showToast("Đã sao chép link mời! Dán vào Messenger để gửi.");
+  setTimeout(() => {
+    const win = window.open("https://www.messenger.com/", "_blank", "noopener,noreferrer");
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = "https://www.messenger.com/";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }, 250);
 }
 
 async function downloadBackup() {
@@ -794,7 +815,7 @@ function bindGroupEvents() {
   if (copyInvite) {
     copyInvite.addEventListener("click", () => {
       if (!state.group || !state.group.invite_code) return;
-      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`, copyInvite);
+      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`);
     });
   }
   if (copyOwner) {
@@ -950,12 +971,42 @@ function closeModal(id) {
   updateBodyScrollLock();
 }
 
+let currentActiveTab = "session";
+const tabScrollPositions = {
+  session: 0,
+  history: 0,
+  members: 0,
+  scoreboard: 0,
+};
+
+window.addEventListener("scroll", () => {
+  if (currentActiveTab) {
+    tabScrollPositions[currentActiveTab] = window.scrollY || window.pageYOffset || 0;
+  }
+}, { passive: true });
+
 function switchTab(tabName) {
+  if (!tabName) return;
+  // Save current tab scroll position before switching
+  if (currentActiveTab) {
+    tabScrollPositions[currentActiveTab] = window.scrollY || window.pageYOffset || 0;
+  }
+  currentActiveTab = tabName;
+
   document.querySelectorAll(".nav-tab").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === tabName);
   });
   document.querySelectorAll(".tab-panel").forEach((p) => {
     p.classList.toggle("active", p.id === `tab-${tabName}`);
+  });
+
+  const targetScroll = tabScrollPositions[tabName] || 0;
+  requestAnimationFrame(() => {
+    try {
+      window.scrollTo({ top: targetScroll, left: 0, behavior: "instant" });
+    } catch (_) {
+      window.scrollTo(0, targetScroll);
+    }
   });
 }
 
