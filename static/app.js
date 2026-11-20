@@ -1,22 +1,29 @@
 const BANKS = [
-  { code: "", label: "-- Chưa chọn ngân hàng --" },
-  { code: "VCB", label: "Vietcombank (VCB)" },
-  { code: "TCB", label: "Techcombank (TCB)" },
-  { code: "MB", label: "MB Bank (MB)" },
-  { code: "ACB", label: "ACB" },
-  { code: "BIDV", label: "BIDV" },
-  { code: "ICB", label: "VietinBank (ICB)" },
-  { code: "VPB", label: "VPBank (VPB)" },
-  { code: "TPB", label: "TPBank (TPB)" },
-  { code: "STB", label: "Sacombank (STB)" },
-  { code: "VIB", label: "VIB" },
-  { code: "HDB", label: "HDBank (HDB)" },
-  { code: "OCB", label: "OCB" },
-  { code: "SHB", label: "SHB" },
-  { code: "MSB", label: "MSB" },
-  { code: "VBA", label: "Agribank (VBA)" },
-  { code: "CAKE", label: "CAKE by VPBank" },
-  { code: "TIMO", label: "Timo by BVBank" },
+  { code: "", label: "-- Chưa chọn ngân hàng --", keywords: "" },
+  { code: "MOMO", label: "Ví MoMo (971025)", keywords: "momo vi momo psp 971025 ví momo" },
+  { code: "VCB", label: "Vietcombank (VCB)", keywords: "vcb vietcombank ngoai thuong" },
+  { code: "TCB", label: "Techcombank (TCB)", keywords: "tcb techcombank ky thuong" },
+  { code: "MB", label: "MB Bank (MB)", keywords: "mb mbbank quan doi" },
+  { code: "ACB", label: "ACB", keywords: "acb a chau" },
+  { code: "BIDV", label: "BIDV", keywords: "bidv dau tu phat trien" },
+  { code: "ICB", label: "VietinBank (ICB)", keywords: "icb vietinbank cong thuong" },
+  { code: "VPB", label: "VPBank (VPB)", keywords: "vpb vpbank thinh vuong" },
+  { code: "TPB", label: "TPBank (TPB)", keywords: "tpb tpbank tien phong" },
+  { code: "STB", label: "Sacombank (STB)", keywords: "stb sacombank sai gon thuong tin" },
+  { code: "VIB", label: "VIB", keywords: "vib quoc te" },
+  { code: "HDB", label: "HDBank (HDB)", keywords: "hdb hdbank phat trien tphcm" },
+  { code: "OCB", label: "OCB", keywords: "ocb phuong dong" },
+  { code: "SHB", label: "SHB", keywords: "shb sai gon ha noi" },
+  { code: "MSB", label: "MSB", keywords: "msb hang hai" },
+  { code: "VBA", label: "Agribank (VBA)", keywords: "vba agribank nong nghiep" },
+  { code: "CAKE", label: "CAKE by VPBank", keywords: "cake by vpbank ngan hang so" },
+  { code: "TIMO", label: "Timo by BVBank", keywords: "timo by bvbank ban viet" },
+  { code: "ZALOPAY", label: "Ví ZaloPay (971101)", keywords: "zalopay zalo pay vi dien tu 971101" },
+  { code: "VTLMONEY", label: "Viettel Money (971005)", keywords: "viettel money vtl viettelpay 971005" },
+  { code: "LPB", label: "LPBank (Lộc Phát)", keywords: "lpb lienvietpostbank loc phat" },
+  { code: "SEAB", label: "SeABank", keywords: "seab seabank dong nam a" },
+  { code: "NAB", label: "Nam A Bank", keywords: "nab nam a bank" },
+  { code: "EXB", label: "Eximbank", keywords: "exb eximbank xuat nhap khau" },
 ];
 
 const ICONS = {
@@ -752,15 +759,25 @@ window.setCustomBankValue = function (code) {
   const b = BANKS.find((x) => x.code === code);
   const badge = document.getElementById("bank-badge-preview");
   const label = document.getElementById("bank-label-preview");
+  const accInput = document.getElementById("input-member-accno");
   if (badge && label) {
     if (b && b.code) {
       badge.textContent = b.code;
-      badge.className = "bank-trigger-badge active";
+      badge.className = "bank-trigger-badge active" + (b.code === "MOMO" ? " badge-momo" : "");
       label.textContent = b.label;
     } else {
       badge.textContent = "🏦";
       badge.className = "bank-trigger-badge";
       label.textContent = "-- Chưa chọn ngân hàng --";
+    }
+  }
+  if (accInput) {
+    if (code === "MOMO") {
+      accInput.placeholder = "VD: PSP2600711000000104 hoặc SĐT MoMo";
+    } else if (code === "ZALOPAY" || code === "VTLMONEY") {
+      accInput.placeholder = "VD: Số điện thoại ví hoặc số tài khoản";
+    } else {
+      accInput.placeholder = "VD: 190368686868";
     }
   }
   closeAllCustomSelects();
@@ -774,7 +791,10 @@ function renderCustomBankOptions(filterText = "") {
 
   const filtered = BANKS.filter((b) => {
     if (!query) return true;
-    return b.code.toLowerCase().includes(query) || b.label.toLowerCase().includes(query);
+    const matchCode = b.code && b.code.toLowerCase().includes(query);
+    const matchLabel = b.label && b.label.toLowerCase().includes(query);
+    const matchKeywords = b.keywords && b.keywords.toLowerCase().includes(query);
+    return matchCode || matchLabel || matchKeywords;
   });
 
   if (filtered.length === 0) {
@@ -785,10 +805,11 @@ function renderCustomBankOptions(filterText = "") {
   container.innerHTML = filtered
     .map((b) => {
       const isSelected = b.code === currentVal;
+      const isMoMo = b.code === "MOMO";
       return `
         <div class="custom-select-option ${isSelected ? "selected" : ""}" onclick="setCustomBankValue('${b.code}')">
           <div class="option-left">
-            <span class="bank-option-badge">${b.code || "✕"}</span>
+            <span class="bank-option-badge ${isMoMo ? "badge-momo" : ""}">${b.code || "✕"}</span>
             <span class="option-name">${escapeHtml(b.label)}</span>
           </div>
           ${isSelected ? `<span class="option-check">${ICONS.check}</span>` : ""}

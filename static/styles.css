@@ -1858,6 +1858,20 @@ textarea:focus {
   border-color: #059669;
 }
 
+.bank-option-badge.badge-momo,
+.bank-trigger-badge.badge-momo {
+  background: rgba(216, 45, 139, 0.12) !important;
+  color: #d82d8b !important;
+  border-color: rgba(216, 45, 139, 0.3) !important;
+  font-weight: 800;
+}
+
+.custom-select-option.selected .bank-option-badge.badge-momo {
+  background: #d82d8b !important;
+  color: #ffffff !important;
+  border-color: #d82d8b !important;
+}
+
 .payer-option-avatar {
   width: 26px;
   height: 26px;
