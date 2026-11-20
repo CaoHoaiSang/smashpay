@@ -8,16 +8,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=2.8" />
-  <link rel="apple-touch-icon" href="/static/favicon.svg?v=2.8" />
-  <link rel="stylesheet" href="/static/styles.css?v=2.8" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png?v=3.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=3.0" />
+  <link rel="manifest" href="/static/manifest.json?v=3.0" />
+  <link rel="stylesheet" href="/static/styles.css?v=3.0" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
         <div class="brand-icon-wrap">
-          <img src="/static/favicon.svg?v=2.6" alt="SmashPay Logo" class="brand-logo-img" />
+          <img src="/static/favicon.svg?v=3.0" alt="SmashPay Logo" class="brand-logo-img" />
         </div>
         <div>
           <div class="brand-title-row">
@@ -36,6 +38,9 @@
         </button>
         <button class="nav-tab" data-tab="members" role="tab">
           Thành viên
+        </button>
+        <button class="nav-tab" data-tab="scoreboard" role="tab">
+          🏸 Bảng điểm
         </button>
       </nav>
     </div>
@@ -305,6 +310,112 @@
           </button>
         </div>
         <div id="members-list" class="members-list"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: SCOREBOARD (BẢNG ĐIỂM THI ĐẤU) -->
+    <section id="tab-scoreboard" class="tab-panel">
+      <div class="card scoreboard-card" id="scoreboard-arena">
+        <!-- Scoreboard Header & Mode bar -->
+        <div class="sb-topbar">
+          <div class="sb-title-row">
+            <span class="sb-badge-live">LIVE</span>
+            <h2 class="sb-match-title" id="sb-match-title">Trận đấu cầu lông</h2>
+            <span class="sb-set-badge" id="sb-set-badge">Ván 1</span>
+          </div>
+          <div class="sb-actions-top">
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-sb-settings" title="Cài đặt trận đấu">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>Đổi tên / Ván</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-xs btn-gradient" id="btn-sb-fullscreen">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              <span id="sb-fullscreen-label">Toàn màn hình ngang</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scoreboard Arena Board: Split Left (Team A) & Right (Team B) -->
+        <div class="sb-board" id="sb-board-grid">
+          <!-- Team A (Left Side) -->
+          <div class="sb-side sb-side-a" id="sb-side-a" role="button" tabindex="0" aria-label="Bấm để cộng 1 điểm cho Đội A">
+            <div class="sb-side-header">
+              <div class="sb-team-tag">
+                <span class="sb-color-indicator bg-team-a"></span>
+                <span class="sb-team-name" id="sb-team-a-name">Đội A</span>
+              </div>
+              <div class="sb-serve-badge" id="sb-serve-badge-a">
+                <span class="sb-shuttle-icon">🏸</span>
+                <span class="sb-serve-text">Giao cầu</span>
+              </div>
+            </div>
+            
+            <div class="sb-score-display">
+              <div class="sb-score-number" id="sb-score-a">0</div>
+            </div>
+
+            <div class="sb-side-footer">
+              <div class="sb-sets-won" id="sb-sets-a">Ván thắng: <strong>0</strong></div>
+              <div class="sb-tap-hint">Chạm để +1 điểm</div>
+            </div>
+          </div>
+
+          <!-- Center Divider & Match Status -->
+          <div class="sb-divider-col">
+            <div class="sb-sets-center">
+              <span class="sb-set-title">SET ĐẤU</span>
+              <div class="sb-sets-score" id="sb-sets-ratio">0 - 0</div>
+            </div>
+            <div class="sb-service-court" id="sb-service-court-text">
+              Ô phải (Chẵn)
+            </div>
+            <div class="sb-point-banner hidden" id="sb-point-banner">
+              MATCH POINT
+            </div>
+          </div>
+
+          <!-- Team B (Right Side) -->
+          <div class="sb-side sb-side-b" id="sb-side-b" role="button" tabindex="0" aria-label="Bấm để cộng 1 điểm cho Đội B">
+            <div class="sb-side-header">
+              <div class="sb-team-tag">
+                <span class="sb-color-indicator bg-team-b"></span>
+                <span class="sb-team-name" id="sb-team-b-name">Đội B</span>
+              </div>
+              <div class="sb-serve-badge hidden" id="sb-serve-badge-b">
+                <span class="sb-shuttle-icon">🏸</span>
+                <span class="sb-serve-text">Giao cầu</span>
+              </div>
+            </div>
+
+            <div class="sb-score-display">
+              <div class="sb-score-number" id="sb-score-b">0</div>
+            </div>
+
+            <div class="sb-side-footer">
+              <div class="sb-sets-won" id="sb-sets-b">Ván thắng: <strong>0</strong></div>
+              <div class="sb-tap-hint">Chạm để +1 điểm</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scoreboard Bottom Control Bar -->
+        <div class="sb-controls-bar">
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-undo">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            <span>Hoàn tác (-1)</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-swap">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+            <span>Đổi sân ⇄</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-new-set">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            <span>Ván mới</span>
+          </button>
+          <button type="button" class="btn btn-danger btn-sm sb-ctrl-btn" id="btn-sb-reset">
+            <span>Trận mới</span>
+          </button>
+        </div>
       </div>
     </section>
   </main>
@@ -593,8 +704,69 @@
     </div>
   </div>
 
+  <!-- MODAL: SCOREBOARD SETTINGS -->
+  <div id="modal-scoreboard-settings" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Cài đặt trận đấu cầu lông</h3>
+        <button class="icon-close" data-close-modal="modal-scoreboard-settings" aria-label="Đóng">&times;</button>
+      </div>
+      <form id="form-scoreboard-settings" class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-sb-team-a">Tên Đội A (Bên trái)</label>
+            <input type="text" id="input-sb-team-a" value="Đội A" placeholder="VD: Sang & Tuấn" />
+          </div>
+          <div class="form-group">
+            <label for="input-sb-team-b">Tên Đội B (Bên phải)</label>
+            <input type="text" id="input-sb-team-b" value="Đội B" placeholder="VD: Hùng & Long" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="select-sb-points">Điểm chạm ván</label>
+            <select id="select-sb-points">
+              <option value="21" selected>21 điểm (Chuẩn quốc tế BWF)</option>
+              <option value="15">15 điểm (Đánh nhanh)</option>
+              <option value="11">11 điểm (Giao lưu ngắn)</option>
+              <option value="31">31 điểm (1 set chạm)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-sb-sets">Số ván đấu</label>
+            <select id="select-sb-sets">
+              <option value="3" selected>Đấu 3 ván thắng 2 (Bo3)</option>
+              <option value="1">Đấu 1 ván duy nhất</option>
+              <option value="5">Đấu 5 ván thắng 3 (Bo5)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Bên giao cầu mở màn:</label>
+          <div class="pill-group" style="display:flex; gap:8px;">
+            <label class="pill-btn active" id="label-first-serve-a" style="flex:1; text-align:center; padding:8px; cursor:pointer;">
+              <input type="radio" name="first_serve" value="A" checked style="display:none;" />
+              <span>🏸 Đội A giao trước</span>
+            </label>
+            <label class="pill-btn" id="label-first-serve-b" style="flex:1; text-align:center; padding:8px; cursor:pointer;">
+              <input type="radio" name="first_serve" value="B" style="display:none;" />
+              <span>🏸 Đội B giao trước</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-scoreboard-settings">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu cài đặt</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=2.8"></script>
+  <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

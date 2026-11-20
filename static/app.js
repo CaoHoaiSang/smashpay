@@ -280,6 +280,7 @@ async function initApp() {
   populateBankSelect();
   setupCustomSelectEvents();
   bindEvents();
+  initScoreboard();
   await loadMembers();
   await loadSessions();
 
@@ -1910,6 +1911,328 @@ function bindEvents() {
     await toggleSettlementPaid(state.qrTarget.id, true);
     closeModal("modal-qr");
   });
+}
+
+// =========================================
+// SCOREBOARD LOGIC (BẢNG ĐIỂM THI ĐẤU CẦU LÔNG)
+// =========================================
+
+const scoreState = {
+  teamA: { name: "Đội A", score: 0, sets: 0 },
+  teamB: { name: "Đội B", score: 0, sets: 0 },
+  currentSet: 1,
+  targetSets: 3, // Bo3
+  maxPoints: 21,
+  serving: "A", // 'A' or 'B'
+  history: [],
+  isSwapped: false,
+  isFullscreen: false,
+};
+
+function initScoreboard() {
+  const sideA = document.getElementById("sb-side-a");
+  const sideB = document.getElementById("sb-side-b");
+  const btnUndo = document.getElementById("btn-sb-undo");
+  const btnSwap = document.getElementById("btn-sb-swap");
+  const btnNewSet = document.getElementById("btn-sb-new-set");
+  const btnReset = document.getElementById("btn-sb-reset");
+  const btnFullscreen = document.getElementById("btn-sb-fullscreen");
+  const btnSettings = document.getElementById("btn-sb-settings");
+  const formSettings = document.getElementById("form-scoreboard-settings");
+
+  if (!sideA || !sideB) return;
+
+  sideA.addEventListener("click", () => addScore("A"));
+  sideB.addEventListener("click", () => addScore("B"));
+
+  if (btnUndo) btnUndo.addEventListener("click", undoScore);
+  if (btnSwap) btnSwap.addEventListener("click", swapSides);
+  if (btnNewSet) btnNewSet.addEventListener("click", () => {
+    if (confirm("Bắt đầu ván đấu mới? (Điểm số hiện tại sẽ về 0-0, số ván thắng được giữ nguyên)")) {
+      resetSet();
+    }
+  });
+  if (btnReset) btnReset.addEventListener("click", () => {
+    if (confirm("Tạo lại trận đấu mới từ đầu? (Tất cả điểm số và ván thắng sẽ về 0-0)")) {
+      resetMatch();
+    }
+  });
+  if (btnFullscreen) btnFullscreen.addEventListener("click", toggleScoreboardFullscreen);
+  if (btnSettings) btnSettings.addEventListener("click", openScoreboardSettings);
+  if (formSettings) formSettings.addEventListener("submit", submitScoreboardSettings);
+
+  // First serve radio toggle styles in settings modal
+  document.querySelectorAll('input[name="first_serve"]').forEach((r) => {
+    r.addEventListener("change", (e) => {
+      document.getElementById("label-first-serve-a")?.classList.toggle("active", e.target.value === "A");
+      document.getElementById("label-first-serve-b")?.classList.toggle("active", e.target.value === "B");
+    });
+  });
+
+  renderScoreboard();
+}
+
+function renderScoreboard() {
+  const scoreAEl = document.getElementById("sb-score-a");
+  const scoreBEl = document.getElementById("sb-score-b");
+  const nameAEl = document.getElementById("sb-team-a-name");
+  const nameBEl = document.getElementById("sb-team-b-name");
+  const setsAEl = document.getElementById("sb-sets-a");
+  const setsBEl = document.getElementById("sb-sets-b");
+  const setsRatioEl = document.getElementById("sb-sets-ratio");
+  const setBadgeEl = document.getElementById("sb-set-badge");
+  const sideAEl = document.getElementById("sb-side-a");
+  const sideBEl = document.getElementById("sb-side-b");
+  const serveBadgeA = document.getElementById("sb-serve-badge-a");
+  const serveBadgeB = document.getElementById("sb-serve-badge-b");
+  const courtTextEl = document.getElementById("sb-service-court-text");
+  const pointBannerEl = document.getElementById("sb-point-banner");
+
+  if (!scoreAEl || !scoreBEl) return;
+
+  scoreAEl.textContent = String(scoreState.teamA.score);
+  scoreBEl.textContent = String(scoreState.teamB.score);
+  if (nameAEl) nameAEl.textContent = scoreState.teamA.name;
+  if (nameBEl) nameBEl.textContent = scoreState.teamB.name;
+  if (setsAEl) setsAEl.innerHTML = `Ván thắng: <strong>${scoreState.teamA.sets}</strong>`;
+  if (setsBEl) setsBEl.innerHTML = `Ván thắng: <strong>${scoreState.teamB.sets}</strong>`;
+  if (setsRatioEl) setsRatioEl.textContent = `${scoreState.teamA.sets} - ${scoreState.teamB.sets}`;
+  if (setBadgeEl) setBadgeEl.textContent = `Ván ${scoreState.currentSet}`;
+
+  // Serving side styling
+  const isAServing = scoreState.serving === "A";
+  if (sideAEl) sideAEl.classList.toggle("is-serving", isAServing);
+  if (sideBEl) sideBEl.classList.toggle("is-serving", !isAServing);
+  if (serveBadgeA) serveBadgeA.classList.toggle("hidden", !isAServing);
+  if (serveBadgeB) serveBadgeB.classList.toggle("hidden", isAServing);
+
+  // BWF Service court: even = right court, odd = left court
+  const currentServeScore = isAServing ? scoreState.teamA.score : scoreState.teamB.score;
+  const isRightCourt = currentServeScore % 2 === 0;
+  if (courtTextEl) {
+    courtTextEl.textContent = isRightCourt ? "Ô phải (Chẵn)" : "Ô trái (Lẻ)";
+  }
+
+  // Game Point / Match Point check
+  const neededSetsToWin = Math.ceil(scoreState.targetSets / 2);
+  const aCanWinMatch = scoreState.teamA.sets === neededSetsToWin - 1;
+  const bCanWinMatch = scoreState.teamB.sets === neededSetsToWin - 1;
+
+  const aIsGamePoint = isPointPotentialWin(scoreState.teamA.score, scoreState.teamB.score, scoreState.maxPoints);
+  const bIsGamePoint = isPointPotentialWin(scoreState.teamB.score, scoreState.teamA.score, scoreState.maxPoints);
+
+  if (pointBannerEl) {
+    if (aIsGamePoint && aCanWinMatch) {
+      pointBannerEl.textContent = `MATCH POINT - ${scoreState.teamA.name.toUpperCase()}`;
+      pointBannerEl.classList.remove("hidden");
+    } else if (bIsGamePoint && bCanWinMatch) {
+      pointBannerEl.textContent = `MATCH POINT - ${scoreState.teamB.name.toUpperCase()}`;
+      pointBannerEl.classList.remove("hidden");
+    } else if (aIsGamePoint) {
+      pointBannerEl.textContent = `SET POINT - ${scoreState.teamA.name.toUpperCase()}`;
+      pointBannerEl.classList.remove("hidden");
+    } else if (bIsGamePoint) {
+      pointBannerEl.textContent = `SET POINT - ${scoreState.teamB.name.toUpperCase()}`;
+      pointBannerEl.classList.remove("hidden");
+    } else {
+      pointBannerEl.classList.add("hidden");
+    }
+  }
+}
+
+function isPointPotentialWin(leaderScore, followerScore, maxPoints) {
+  if (leaderScore >= maxPoints - 1 && leaderScore > followerScore) {
+    if (leaderScore >= 20 && followerScore >= 20) {
+      return leaderScore - followerScore === 1 || leaderScore === 29;
+    }
+    return true;
+  }
+  return false;
+}
+
+function addScore(side) {
+  // Push state to history for undo
+  scoreState.history.push({
+    teamA: { ...scoreState.teamA },
+    teamB: { ...scoreState.teamB },
+    currentSet: scoreState.currentSet,
+    serving: scoreState.serving,
+  });
+
+  if (side === "A") {
+    scoreState.teamA.score++;
+    scoreState.serving = "A";
+  } else {
+    scoreState.teamB.score++;
+    scoreState.serving = "B";
+  }
+
+  if (navigator.vibrate) {
+    navigator.vibrate(30);
+  }
+
+  // Check Set Win
+  checkSetWinner();
+  renderScoreboard();
+}
+
+function checkSetWinner() {
+  const sA = scoreState.teamA.score;
+  const sB = scoreState.teamB.score;
+  const max = scoreState.maxPoints;
+  let winner = null;
+
+  // Win condition: reach maxPoints and lead by >= 2, or reach hard cap 30
+  if ((sA >= max && sA - sB >= 2) || sA >= 30) {
+    winner = "A";
+  } else if ((sB >= max && sB - sA >= 2) || sB >= 30) {
+    winner = "B";
+  }
+
+  if (winner) {
+    const winningName = winner === "A" ? scoreState.teamA.name : scoreState.teamB.name;
+    const finalScore = `${sA} - ${sB}`;
+    if (winner === "A") scoreState.teamA.sets++;
+    else scoreState.teamB.sets++;
+
+    const neededSetsToWin = Math.ceil(scoreState.targetSets / 2);
+    const matchWinner =
+      scoreState.teamA.sets >= neededSetsToWin
+        ? scoreState.teamA.name
+        : scoreState.teamB.sets >= neededSetsToWin
+        ? scoreState.teamB.name
+        : null;
+
+    if (matchWinner) {
+      setTimeout(() => {
+        alert(`🏆 CHÚC MỪNG!\n\n${matchWinner} đã THẮNG CHUNG CUỘC với tỷ số ván ${scoreState.teamA.sets} - ${scoreState.teamB.sets}!`);
+      }, 100);
+    } else {
+      setTimeout(() => {
+        if (confirm(`🎉 ${winningName} thắng Ván ${scoreState.currentSet} (${finalScore})!\n\nBắt đầu Ván ${scoreState.currentSet + 1} và đổi sân?`)) {
+          swapSides();
+          scoreState.currentSet++;
+          scoreState.teamA.score = 0;
+          scoreState.teamB.score = 0;
+          scoreState.serving = winner; // winning team serves first in next game
+          renderScoreboard();
+        }
+      }, 100);
+    }
+  }
+}
+
+function undoScore() {
+  if (scoreState.history.length === 0) {
+    showToast("Chưa có điểm nào để hoàn tác.");
+    return;
+  }
+  const prev = scoreState.history.pop();
+  scoreState.teamA = prev.teamA;
+  scoreState.teamB = prev.teamB;
+  scoreState.currentSet = prev.currentSet;
+  scoreState.serving = prev.serving;
+  renderScoreboard();
+  showToast("Đã hoàn tác 1 điểm.");
+}
+
+function swapSides() {
+  scoreState.isSwapped = !scoreState.isSwapped;
+  const board = document.getElementById("sb-board-grid");
+  const sideA = document.getElementById("sb-side-a");
+  const sideB = document.getElementById("sb-side-b");
+  if (board && sideA && sideB) {
+    if (scoreState.isSwapped) {
+      sideA.style.order = "3";
+      sideB.style.order = "1";
+    } else {
+      sideA.style.order = "1";
+      sideB.style.order = "3";
+    }
+  }
+  showToast("Đã đổi sân thi đấu ⇄");
+}
+
+function resetSet() {
+  scoreState.history.push({
+    teamA: { ...scoreState.teamA },
+    teamB: { ...scoreState.teamB },
+    currentSet: scoreState.currentSet,
+    serving: scoreState.serving,
+  });
+  scoreState.teamA.score = 0;
+  scoreState.teamB.score = 0;
+  renderScoreboard();
+  showToast("Đã thiết lập lại ván đấu (0 - 0).");
+}
+
+function resetMatch() {
+  scoreState.teamA.score = 0;
+  scoreState.teamA.sets = 0;
+  scoreState.teamB.score = 0;
+  scoreState.teamB.sets = 0;
+  scoreState.currentSet = 1;
+  scoreState.history = [];
+  scoreState.serving = "A";
+  renderScoreboard();
+  showToast("Đã tạo trận đấu mới (0 - 0).");
+}
+
+function toggleScoreboardFullscreen() {
+  const arena = document.getElementById("scoreboard-arena");
+  const label = document.getElementById("sb-fullscreen-label");
+  if (!arena) return;
+
+  scoreState.isFullscreen = !scoreState.isFullscreen;
+  arena.classList.toggle("scoreboard-fullscreen", scoreState.isFullscreen);
+
+  if (label) {
+    label.textContent = scoreState.isFullscreen ? "Thu nhỏ ✕" : "Toàn màn hình ngang";
+  }
+
+  // Request native fullscreen API if available
+  if (scoreState.isFullscreen) {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  } else {
+    if (document.exitFullscreen && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+}
+
+function openScoreboardSettings() {
+  const inputA = document.getElementById("input-sb-team-a");
+  const inputB = document.getElementById("input-sb-team-b");
+  const selectPts = document.getElementById("select-sb-points");
+  const selectSets = document.getElementById("select-sb-sets");
+
+  if (inputA) inputA.value = scoreState.teamA.name;
+  if (inputB) inputB.value = scoreState.teamB.name;
+  if (selectPts) selectPts.value = String(scoreState.maxPoints);
+  if (selectSets) selectSets.value = String(scoreState.targetSets);
+
+  openModal("modal-scoreboard-settings");
+}
+
+function submitScoreboardSettings(e) {
+  e.preventDefault();
+  const inputA = document.getElementById("input-sb-team-a");
+  const inputB = document.getElementById("input-sb-team-b");
+  const selectPts = document.getElementById("select-sb-points");
+  const selectSets = document.getElementById("select-sb-sets");
+  const firstServe = document.querySelector('input[name="first_serve"]:checked')?.value || "A";
+
+  if (inputA && inputA.value.trim()) scoreState.teamA.name = inputA.value.trim();
+  if (inputB && inputB.value.trim()) scoreState.teamB.name = inputB.value.trim();
+  if (selectPts) scoreState.maxPoints = Number(selectPts.value) || 21;
+  if (selectSets) scoreState.targetSets = Number(selectSets.value) || 3;
+  scoreState.serving = firstServe;
+
+  closeModal("modal-scoreboard-settings");
+  renderScoreboard();
+  showToast("Đã cập nhật cài đặt trận đấu!");
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
