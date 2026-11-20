@@ -231,6 +231,93 @@ body {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
+/* =========================================
+   DESKTOP VS MOBILE NAVIGATION TAB BAR
+   ========================================= */
+@media (min-width: 769px) {
+  .nav-tabs-mobile {
+    display: none !important;
+  }
+  .nav-tabs-desktop {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-tabs-desktop {
+    display: none !important;
+  }
+  .nav-tabs-mobile {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    z-index: 99999 !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(25px) !important;
+    -webkit-backdrop-filter: blur(25px) !important;
+    border-top: 1px solid rgba(226, 232, 240, 0.95) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    border-radius: 0 !important;
+    box-shadow: 0 -4px 25px rgba(15, 23, 42, 0.1) !important;
+    padding: 6px 4px max(12px, env(safe-area-inset-bottom)) 4px !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .nav-tabs-mobile .nav-tab {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    padding: 5px 2px !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #64748b !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    box-shadow: none !important;
+    transition: all 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+  .nav-tabs-mobile .nav-tab .nav-tab-icon {
+    width: 22px !important;
+    height: 22px !important;
+    stroke-width: 2 !important;
+    stroke: currentColor !important;
+  }
+  .nav-tabs-mobile .nav-tab .nav-tab-text {
+    font-size: 10.5px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+  .nav-tabs-mobile .nav-tab.active {
+    color: var(--primary-dark) !important;
+    background: rgba(16, 185, 129, 0.1) !important;
+    font-weight: 700 !important;
+  }
+  .nav-tabs-mobile .nav-tab.active .nav-tab-icon {
+    stroke: var(--primary-dark) !important;
+    transform: translateY(-1px) scale(1.08) !important;
+  }
+  .container {
+    padding-bottom: 105px !important;
+  }
+  body.in-fullscreen .nav-tabs-mobile {
+    display: none !important;
+  }
+}
+
 /* Container */
 .container {
   max-width: 980px;
@@ -2322,81 +2409,9 @@ textarea:focus {
     height: 16px;
   }
 
-  /* Bottom Navigation Bar for Mobile (Ergonomic iOS/Android Thumb Zone) */
-  .nav-tabs {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 1000 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background: rgba(255, 255, 255, 0.94) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    border-top: 1px solid rgba(226, 232, 240, 0.92) !important;
-    border-left: none !important;
-    border-right: none !important;
-    border-bottom: none !important;
-    border-radius: 0 !important;
-    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08) !important;
-    padding: 6px 6px max(10px, env(safe-area-inset-bottom)) 6px !important;
-    display: flex !important;
-    justify-content: space-around !important;
-    align-items: center !important;
-    margin: 0 !important;
-    gap: 3px !important;
-  }
-
-  .nav-tab {
-    flex: 1 1 0 !important;
-    min-width: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 3px !important;
-    padding: 5px 2px !important;
-    border-radius: 10px !important;
-    background: transparent !important;
-    border: none !important;
-    color: #64748b !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    box-shadow: none !important;
-    transition: all 0.15s ease !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-  .nav-tab .nav-tab-icon {
-    width: 20px !important;
-    height: 20px !important;
-    stroke-width: 2 !important;
-    stroke: currentColor !important;
-    transition: transform 0.15s ease, stroke 0.15s ease !important;
-  }
-
-  .nav-tab .nav-tab-text {
-    font-size: 10.5px !important;
-    line-height: 1.1 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
-
-  .nav-tab.active {
-    color: var(--primary-dark) !important;
-    background: rgba(16, 185, 129, 0.1) !important;
-    font-weight: 700 !important;
-  }
-
-  .nav-tab.active .nav-tab-icon {
-    stroke: var(--primary-dark) !important;
-    transform: translateY(-1px) scale(1.08) !important;
-  }
-
   /* Fullscreen Scoreboard hides topbar and bottom tabs completely */
   body.in-fullscreen .nav-tabs,
+  body.in-fullscreen .nav-tabs-mobile,
   body.in-fullscreen .topbar {
     display: none !important;
   }
@@ -3430,6 +3445,61 @@ textarea:focus {
 .sb-win-card p {
   margin: 0 0 14px;
   color: var(--text-muted);
+}
+
+.sb-win-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Sound Settings Box in Scoreboard Settings Modal */
+.sb-sound-settings-box {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-top: 14px;
+}
+
+.sb-sound-settings-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-with-action {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-with-action select {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-sound-test {
+  flex-shrink: 0;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--primary-dark) !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sound-test:hover {
+  background: var(--primary-soft) !important;
+  border-color: var(--primary) !important;
 }
 
 .sb-voice-text {

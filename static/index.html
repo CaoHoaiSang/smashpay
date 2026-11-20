@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=3.8" />
+  <link rel="stylesheet" href="/static/styles.css?v=3.9" />
 </head>
 <body>
   <header class="topbar">
@@ -32,7 +32,7 @@
           <p class="brand-sub">Chia tiền cầu lông · VietQR tức thì</p>
         </div>
       </div>
-      <nav class="nav-tabs" role="tablist">
+      <nav class="nav-tabs nav-tabs-desktop" role="tablist">
         <button class="nav-tab active" data-tab="session" role="tab" aria-label="Buổi chơi">
           <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           <span class="nav-tab-text">Buổi chơi</span>
@@ -335,9 +335,9 @@
               <span class="sb-voice-dot" id="sb-voice-dot"></span>
               <span id="sb-voice-label">🎙️ Micro: Tắt</span>
             </button>
-            <button type="button" class="btn btn-secondary btn-xs" id="btn-sb-settings" title="Cài đặt trận đấu">
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-sb-settings" title="Cài đặt ván & âm thanh">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span>Cài đặt ván</span>
+              <span>Cài đặt / Âm thanh</span>
             </button>
             <button type="button" class="btn btn-primary btn-xs btn-gradient" id="btn-sb-fullscreen">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
@@ -351,12 +351,27 @@
           <span class="sb-voice-badge">🎙️ ĐANG NGHE</span>
           <span class="sb-voice-text" id="sb-voice-text">Nói "6 4", "5 2" khi đang 14-12, "8 đều", "Đội A"...</span>
         </div>
+
+        <!-- Overlay: Set Win (Chiến thắng ván đấu) -->
+        <div class="sb-win-overlay hidden" id="sb-set-win-overlay">
+          <div class="sb-win-card">
+            <p class="sb-win-kicker">Kết thúc ván đấu</p>
+            <h3 id="sb-set-win-title">🎉 Chúc mừng</h3>
+            <p id="sb-set-win-detail">Đội thắng ván đấu</p>
+            <div class="sb-win-actions">
+              <button type="button" class="btn btn-primary btn-gradient" id="btn-sb-set-swap">🏸 Ván mới & Đổi sân</button>
+              <button type="button" class="btn btn-secondary" id="btn-sb-set-stay">Tiếp tục (Không đổi sân)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overlay: Match Win (Chiến thắng chung cuộc) -->
         <div class="sb-win-overlay hidden" id="sb-win-overlay">
           <div class="sb-win-card">
-            <p class="sb-win-kicker">Hết trận</p>
-            <h3 id="sb-win-title">Chúc mừng</h3>
+            <p class="sb-win-kicker">Chiến thắng chung cuộc</p>
+            <h3 id="sb-win-title">🏆 Vô địch</h3>
             <p id="sb-win-detail"></p>
-            <button type="button" class="btn btn-primary btn-gradient" id="btn-sb-win-reset">Trận mới</button>
+            <button type="button" class="btn btn-primary btn-gradient" id="btn-sb-win-reset">Làm mới trận đấu</button>
           </div>
         </div>
 
@@ -825,6 +840,59 @@
           </div>
         </div>
 
+        <!-- CÀI ĐẶT ÂM THANH & RUNG -->
+        <div class="sb-sound-settings-box">
+          <div class="sb-sound-settings-title">
+            <span>🔊 Cài đặt Âm thanh & Rung</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="select-sound-point">Âm thanh khi ghi điểm</label>
+              <div class="input-with-action">
+                <select id="select-sound-point">
+                  <option value="classic" selected>Ting êm dịu (Âm cũ nhẹ nhàng)</option>
+                  <option value="digital">Ping kỹ thuật số (Vui tươi)</option>
+                  <option value="referee">Còi trọng tài đanh (Sân ồn)</option>
+                  <option value="none">Tắt âm thanh (Chỉ rung)</option>
+                </select>
+                <button type="button" class="btn btn-secondary btn-xs btn-sound-test" id="btn-test-sound-point" title="Nghe thử âm thanh ghi điểm">▶ Thử</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="select-sound-win">Âm thanh chúc mừng</label>
+              <div class="input-with-action">
+                <select id="select-sound-win">
+                  <option value="arpeggio" selected>Chuông ngân chiến thắng (Êm tai)</option>
+                  <option value="fanfare">Kèn Trumpet khải hoàn</option>
+                  <option value="whistle_speech">Còi kết thúc + Giọng nói chúc mừng</option>
+                  <option value="none">Tắt nhạc chúc mừng</option>
+                </select>
+                <button type="button" class="btn btn-secondary btn-xs btn-sound-test" id="btn-test-sound-win" title="Nghe thử nhạc chúc mừng">▶ Thử</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="select-sound-volume">Âm lượng</label>
+              <select id="select-sound-volume">
+                <option value="high">Lớn (100% - Phù hợp sân ồn)</option>
+                <option value="medium" selected>Vừa phải (60% - Khuyên dùng)</option>
+                <option value="low">Nhẹ nhàng (30%)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="select-sound-vibrate">Rung phản hồi điện thoại</label>
+              <select id="select-sound-vibrate">
+                <option value="yes" selected>Bật rung</option>
+                <option value="no">Tắt rung</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-close-modal="modal-scoreboard-settings">Hủy</button>
           <button type="submit" class="btn btn-primary">Lưu cài đặt</button>
@@ -833,8 +901,28 @@
     </div>
   </div>
 
+  <!-- Mobile Bottom Navigation Bar (Direct child of body, 100% fixed bottom viewport) -->
+  <nav class="nav-tabs nav-tabs-mobile" role="tablist" aria-label="Thanh điều hướng di động">
+    <button class="nav-tab active" data-tab="session" role="tab" aria-label="Buổi chơi">
+      <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="nav-tab-text">Buổi chơi</span>
+    </button>
+    <button class="nav-tab" data-tab="history" role="tab" aria-label="Lịch sử">
+      <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="nav-tab-text">Lịch sử</span>
+    </button>
+    <button class="nav-tab" data-tab="members" role="tab" aria-label="Thành viên">
+      <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-tab-text">Thành viên</span>
+    </button>
+    <button class="nav-tab" data-tab="scoreboard" role="tab" aria-label="Bảng điểm">
+      <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H7"/><path d="M14 14.66V17c0 .55.45 1 1 1h2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+      <span class="nav-tab-text">Bảng điểm</span>
+    </button>
+  </nav>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=3.8"></script>
+  <script src="/static/app.js?v=3.9"></script>
 </body>
 </html>
