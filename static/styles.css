@@ -2235,7 +2235,8 @@ textarea:focus {
   }
 
   .container {
-    padding: 12px 12px 80px;
+    padding: 8px 8px 60px !important;
+    max-width: 100% !important;
   }
 
   .topbar {
@@ -2243,8 +2244,8 @@ textarea:focus {
   }
 
   .topbar-inner {
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 6px 10px;
+    gap: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2255,21 +2256,21 @@ textarea:focus {
   }
 
   .brand h1 {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .brand-sub {
-    display: none;
+    display: none !important;
   }
 
   .brand-icon-wrap {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
   }
 
   .brand-svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
   }
 
   .nav-tabs {
@@ -2277,8 +2278,8 @@ textarea:focus {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 4px;
-    padding: 3px;
+    gap: 3px;
+    padding: 2px;
     margin: 0 auto;
   }
 
@@ -2288,58 +2289,178 @@ textarea:focus {
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 8px 6px;
-    font-size: 13px !important;
+    padding: 6px 4px;
+    font-size: 12px !important;
   }
 
-  /* KPI Grid: 3 compact columns */
+  /* Card spacing: tighter, no excessive margin */
+  .card {
+    padding: 12px 10px !important;
+    margin-bottom: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Section heads: hide verbose paragraphs to save height */
+  .section-head {
+    margin-bottom: 8px !important;
+  }
+
+  .section-head h3 {
+    font-size: 14.5px !important;
+  }
+
+  .section-head p.muted {
+    display: none !important;
+  }
+
+  /* Session header: title and horizontal actions row */
+  .session-header-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .header-actions {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    gap: 6px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .header-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .header-actions .btn {
+    padding: 4px 8px !important;
+    font-size: 11.5px !important;
+    height: 28px !important;
+    flex-shrink: 0;
+  }
+
+  .session-title {
+    font-size: 16px !important;
+    margin: 3px 0 1px 0;
+  }
+
+  .session-notes-text {
+    font-size: 11.5px !important;
+  }
+
+  /* KPI Grid: 3 compact inline columns */
   .kpi-grid {
     grid-template-columns: repeat(3, 1fr) !important;
-    gap: 8px;
+    gap: 6px;
   }
 
   .kpi-box {
-    padding: 10px 8px;
+    padding: 8px 4px;
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
 
   .kpi-icon-pill {
-    width: 30px;
-    height: 30px;
-    margin-bottom: 4px;
+    width: 26px;
+    height: 26px;
+    margin-bottom: 3px;
+  }
+
+  .kpi-icon-pill svg {
+    width: 15px;
+    height: 15px;
   }
 
   .kpi-label {
-    font-size: 10.5px;
+    font-size: 10px;
+    white-space: nowrap;
   }
 
   .kpi-value {
-    font-size: 14.5px;
+    font-size: 13.5px;
   }
 
-  /* Quick Add Tiles: 3x2 on mobile */
+  /* Quick Add Tiles: 3x2 compact row tiles */
   .quick-add-grid {
     grid-template-columns: repeat(3, 1fr) !important;
-    gap: 8px;
+    gap: 6px;
   }
 
   .quick-tile {
-    padding: 10px 6px;
+    padding: 8px 4px !important;
+    min-height: 44px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
   }
 
   .tile-icon-wrap {
-    width: 36px;
-    height: 36px;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    flex-shrink: 0;
+  }
+
+  .tile-svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .tile-info {
+    text-align: left !important;
   }
 
   .tile-info strong {
-    font-size: 12px;
+    font-size: 11px !important;
+    white-space: nowrap;
   }
 
   .tile-info span {
-    display: none;
+    display: none !important;
+  }
+
+  .tile-add-icon {
+    display: none !important;
+  }
+
+  /* Expenses list: compact 1-row layout */
+  .expense-card {
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+    gap: 8px !important;
+  }
+
+  .expense-top {
+    gap: 8px !important;
+  }
+
+  .expense-icon-badge {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+  }
+
+  .expense-name {
+    font-size: 13.5px !important;
+  }
+
+  .expense-meta {
+    font-size: 11px !important;
+    margin-top: 1px !important;
+  }
+
+  .expense-amount {
+    font-size: 13.5px !important;
+  }
+
+  .btn-icon-action {
+    padding: 2px 6px !important;
+    font-size: 11px !important;
+    height: 24px !important;
   }
 
   /* Switch Table to Cards */
@@ -2351,20 +2472,167 @@ textarea:focus {
     display: flex !important;
   }
 
-  /* Settlements on mobile */
+  /* Settlements on mobile: Compact 1-row transaction */
   .settlement-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+    gap: 8px !important;
+  }
+
+  .settlement-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .settlement-avatars {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .settlement-avatars .avatar-circle {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 10px !important;
+  }
+
+  .avatar-arrow-icon {
+    font-size: 10px !important;
+    color: var(--text-muted);
+  }
+
+  .settlement-details {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .settlement-names {
+    font-size: 12.5px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .settlement-names .arrow-text {
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .settlement-subinfo {
+    font-size: 10.5px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bank-pill {
+    padding: 1px 5px !important;
+    font-size: 10px !important;
   }
 
   .settlement-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    border-top: none !important;
+    padding-top: 0 !important;
+    width: auto !important;
+    gap: 3px !important;
+    flex-shrink: 0;
+  }
+
+  .settlement-amount {
+    font-size: 13.5px !important;
+    font-weight: 800;
+  }
+
+  .settlement-actions {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    width: 100%;
-    padding-top: 10px;
-    border-top: 1px dashed var(--border);
+    gap: 5px;
+  }
+
+  .btn-qr-action {
+    padding: 2px 6px !important;
+    font-size: 11px !important;
+    height: 24px !important;
+  }
+
+  .paid-switch-label {
+    font-size: 10.5px !important;
+    gap: 3px !important;
+  }
+
+  .paid-custom-check {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  /* Member Breakdown Cards: compact */
+  .mb-card {
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+    border-radius: 10px !important;
+  }
+
+  .mb-card-title strong {
+    font-size: 13px !important;
+  }
+
+  .avatar-sm {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 9.5px !important;
+  }
+
+  .couple-pill-btn {
+    padding: 1px 5px !important;
+    font-size: 10px !important;
+    height: 20px !important;
+  }
+
+  .mb-net-amount {
+    font-size: 13px !important;
+  }
+
+  .mb-chips-row {
+    margin-top: 3px !important;
+    gap: 3px !important;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .mb-chips-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mb-chip {
+    padding: 1px 4px !important;
+    font-size: 10px !important;
+    flex-shrink: 0;
+  }
+
+  .mb-card-foot {
+    margin-top: 4px !important;
+    padding-top: 4px !important;
+    font-size: 10.5px !important;
+    gap: 4px !important;
+  }
+
+  .mb-foot-item strong {
+    font-size: 11.5px !important;
   }
 
   /* iOS Bottom-Sheet Modals */
@@ -2376,9 +2644,9 @@ textarea:focus {
   .modal-card {
     width: 100% !important;
     max-width: 100% !important;
-    border-radius: 24px 24px 0 0 !important;
+    border-radius: 20px 20px 0 0 !important;
     max-height: 88vh;
-    padding: 20px 16px max(24px, env(safe-area-inset-bottom)) !important;
+    padding: 18px 14px max(20px, env(safe-area-inset-bottom)) !important;
     animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -2394,13 +2662,13 @@ textarea:focus {
   .modal-footer {
     display: flex;
     gap: 8px;
-    margin-top: 18px;
+    margin-top: 14px;
   }
 
   .modal-footer .btn {
     flex: 1;
-    min-height: 44px;
-    font-size: 15px !important;
+    min-height: 42px;
+    font-size: 14.5px !important;
   }
 
   .form-row {
