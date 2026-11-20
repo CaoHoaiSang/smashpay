@@ -94,9 +94,13 @@ function getInitials(name) {
 }
 
 const GROUP_TOKEN_KEY = "smashpay.groupToken";
+const JOIN_CLAIM_KEY = "smashpay.joinClaim";
 
 const state = {
   group: null,
+  joinCode: "",
+  saving: false,
+  joinRequests: [],
   members: [],
   hiddenMembers: [],
   sessions: [],
@@ -215,12 +219,42 @@ function errorDetail(data, fallback) {
   return fallback;
 }
 
+function sessionStamp() {
+  return state.current && state.current.session ? state.current.session.updated_at : "";
+}
+
+function withSessionStamp(payload) {
+  const stamp = sessionStamp();
+  if (!stamp) return payload;
+  return { ...payload, base_updated_at: stamp };
+}
+
 async function api(url, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const writing = method !== "GET" && method !== "HEAD";
+  if (writing) state.saving = true;
   const headers = authHeaders({ "Content-Type": "application/json", ...(options.headers || {}) });
-  const res = await fetch(url, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } finally {
+    if (writing) state.saving = false;
+  }
   if (res.status === 401) {
     dropGroupAccess();
     throw new Error("Hãy vào nhóm trước.");
+  }
+  if (res.status === 409) {
+    const errBody = await res.json().catch(() => ({}));
+    const message = errorDetail(errBody, "Buổi này vừa được sửa trên máy khác. Hãy tải lại.");
+    const conflict = new Error(message);
+    conflict.conflict = true;
+    if (state.current && state.current.session) {
+      const sessionId = state.current.session.id;
+      document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((el) => closeModal(el.id));
+      openSession(sessionId).catch(() => {});
+    }
+    throw conflict;
   }
   if (!res.ok) {
     let msg = "Có lỗi xảy ra";
@@ -258,9 +292,11 @@ function renderGroupBar() {
   document.body.classList.toggle("is-owner", group.role === "owner");
   document.getElementById("group-bar-name").textContent = group.name;
   document.getElementById("group-bar-role").textContent = group.role === "owner" ? "Chủ nhóm" : "Thành viên";
-  document.getElementById("group-invite-code").textContent = group.invite_code || "";
+  const inviteCode = document.getElementById("group-invite-code");
+  if (inviteCode) inviteCode.textContent = group.invite_code || "";
   const ownerCode = document.getElementById("group-owner-code");
   if (ownerCode) ownerCode.textContent = group.owner_code || "";
+  if (group.role === "owner") refreshOwnerQueue();
 }
 
 function setAppLocked(locked) {
@@ -293,7 +329,15 @@ function closeGroupGate() {
 
 function dropGroupAccess() {
   localStorage.removeItem(GROUP_TOKEN_KEY);
+  stopLiveRefresh();
   state.group = null;
+  state.joinCode = "";
+  state.joinRequests = [];
+  state.devices = [];
+  const requestBox = document.getElementById("group-request-box");
+  if (requestBox) requestBox.classList.add("hidden");
+  const banner = document.getElementById("pending-banner");
+  if (banner) banner.classList.add("hidden");
   state.current = null;
   state.members = [];
   state.hiddenMembers = [];
@@ -325,6 +369,7 @@ async function enterGroup() {
     state.current = null;
     renderCurrentSession();
   }
+  startLiveRefresh();
 }
 
 async function acceptGroupLogin(data) {
@@ -343,9 +388,281 @@ async function copyGroupText(text, okMsg) {
   }
 }
 
+let liveTimer = null;
+let joinTimer = null;
+
+function normalizeCode(code) {
+  return String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function stripJoinParam() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("join")) return;
+  url.searchParams.delete("join");
+  const search = url.searchParams.toString();
+  window.history.replaceState({}, "", url.pathname + (search ? `?${search}` : ""));
+}
+
+function inviteLink() {
+  if (!state.group || !state.group.invite_code) return "";
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("join", state.group.invite_code);
+  return url.toString();
+}
+
+function inviteMessage() {
+  const name = state.group ? state.group.name : "SmashPay";
+  return `Vào sổ SmashPay nhóm ${name}. Mở link, gõ tên và chờ chủ nhóm duyệt: ${inviteLink()}`;
+}
+
+function startLiveRefresh() {
+  if (liveTimer) return;
+  liveTimer = setInterval(() => {
+    refreshOpenSession();
+    refreshOwnerQueue();
+  }, 4000);
+}
+
+function stopLiveRefresh() {
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = null;
+}
+
+async function refreshOpenSession() {
+  if (state.saving || !state.group || !state.current || !state.current.session) return;
+  if (document.querySelector(".modal-backdrop:not(.hidden)")) return;
+  const active = document.activeElement;
+  if (active && active.closest && active.closest("input, textarea, select")) return;
+  const id = state.current.session.id;
+  const started = state.current.session.updated_at;
+  const paid = JSON.stringify((state.current.settlements || []).map((s) => [s.id, s.is_paid, s.amount]));
+  let fresh;
+  try {
+    fresh = await api(`/api/sessions/${id}`);
+  } catch (_) {
+    return;
+  }
+  if (state.saving || !state.current || state.current.session.id !== id) return;
+  if (state.current.session.updated_at !== started) return;
+  const paidNow = JSON.stringify((fresh.settlements || []).map((s) => [s.id, s.is_paid, s.amount]));
+  if (fresh.session.updated_at === started && paidNow === paid) return;
+  state.current = fresh;
+  renderCurrentSession();
+  loadSessions().catch(() => {});
+}
+
+async function refreshOwnerQueue() {
+  if (!state.group || state.group.role !== "owner") return;
+  try {
+    const rows = await api("/api/group/requests");
+    state.joinRequests = rows;
+    const badge = document.getElementById("device-pending-count");
+    if (badge) {
+      badge.textContent = String(rows.length);
+      badge.classList.toggle("hidden", rows.length === 0);
+    }
+    const banner = document.getElementById("pending-banner");
+    if (banner) {
+      banner.classList.toggle("hidden", rows.length === 0);
+      banner.textContent = rows.length === 1
+        ? `${rows[0].display_name} đang chờ vào nhóm`
+        : `${rows.length} máy đang chờ vào nhóm`;
+    }
+    const modal = document.getElementById("modal-devices");
+    if (modal && !modal.classList.contains("hidden")) renderDeviceLists(rows);
+  } catch (_) {}
+}
+
+function renderDeviceLists(requests, devices) {
+  if (requests) state.joinRequests = requests;
+  if (devices) state.devices = devices;
+  const reqEl = document.getElementById("device-requests");
+  const listEl = document.getElementById("device-list");
+  if (!reqEl || !listEl) return;
+  const reqs = state.joinRequests || [];
+  reqEl.innerHTML = reqs.length
+    ? reqs.map((r) => `
+        <div class="device-row">
+          <div>
+            <strong>${escapeHtml(r.display_name)}</strong>
+            <div class="muted small">${escapeHtml(r.created_at || "")}</div>
+          </div>
+          <div class="action-row">
+            <button type="button" class="btn btn-primary btn-xs" data-approve-request="${r.id}">Duyệt</button>
+            <button type="button" class="btn btn-secondary btn-xs" data-reject-request="${r.id}">Từ chối</button>
+          </div>
+        </div>`).join("")
+    : `<p class="muted small">Không có máy nào đang chờ.</p>`;
+  const devs = state.devices || [];
+  listEl.innerHTML = devs.length
+    ? devs.map((d) => `
+        <div class="device-row">
+          <div>
+            <strong>${escapeHtml(d.label)}</strong>
+            <div class="muted small">${d.role === "owner" ? "Chủ nhóm" : "Thành viên"}${d.is_current ? " · Máy này" : ""}</div>
+          </div>
+          ${d.is_current ? "" : `<button type="button" class="btn btn-danger btn-xs" data-revoke-device="${escapeHtml(d.device_key)}">Gỡ</button>`}
+        </div>`).join("")
+    : `<p class="muted small">Chưa có máy nào.</p>`;
+}
+
+async function openDevices() {
+  openModal("modal-devices");
+  const [requests, devices] = await Promise.all([
+    api("/api/group/requests"),
+    api("/api/group/devices"),
+  ]);
+  renderDeviceLists(requests, devices);
+  const count = requests.length;
+  const badge = document.getElementById("device-pending-count");
+  if (badge) {
+    badge.textContent = String(count);
+    badge.classList.toggle("hidden", count === 0);
+  }
+}
+
+async function lookupCode(code) {
+  const res = await fetch(`/api/groups/lookup?code=${encodeURIComponent(code)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errorDetail(data, "Không tìm thấy nhóm với mã này."));
+  return data;
+}
+
+function showRequestForm(code, info) {
+  state.joinCode = code;
+  const box = document.getElementById("group-request-box");
+  const intro = document.getElementById("group-request-intro");
+  const form = document.getElementById("form-join-request");
+  const wait = document.getElementById("group-request-wait");
+  if (box) box.classList.remove("hidden");
+  if (form) form.classList.remove("hidden");
+  if (wait) wait.classList.add("hidden");
+  if (!intro) return;
+  if (info.needs_owner) {
+    intro.textContent = `Nhóm ${info.name} chưa có chủ để duyệt. Nhờ người giữ sổ nhận nhóm trước.`;
+    if (form) form.classList.add("hidden");
+    return;
+  }
+  intro.textContent = `Xin vào nhóm ${info.name}. Gõ tên để chủ nhóm nhận ra máy này, rồi chờ duyệt.`;
+}
+
+async function presentJoinLink(code) {
+  await openGroupGate();
+  try {
+    const info = await lookupCode(code);
+    if (info.kind === "owner") {
+      showGroupError("Đây là mã chủ. Dán vào ô mã bên dưới để vào thẳng.");
+      const input = document.getElementById("group-join-code");
+      if (input) input.value = code;
+      return;
+    }
+    showRequestForm(code, info);
+  } catch (err) {
+    showGroupError(err.message);
+  }
+}
+
+function beginJoinWait(claim, groupName, displayName) {
+  localStorage.setItem(JOIN_CLAIM_KEY, claim);
+  const form = document.getElementById("form-join-request");
+  const wait = document.getElementById("group-request-wait");
+  const box = document.getElementById("group-request-box");
+  if (box) box.classList.remove("hidden");
+  if (form) form.classList.add("hidden");
+  if (wait) {
+    wait.classList.remove("hidden");
+    wait.textContent = `Đang chờ chủ nhóm duyệt máy “${displayName}” vào ${groupName}.`;
+  }
+  if (joinTimer) clearInterval(joinTimer);
+  joinTimer = setInterval(() => pollJoinClaim(claim), 2000);
+  pollJoinClaim(claim);
+}
+
+async function pollJoinClaim(claim) {
+  const res = await fetch(`/api/groups/requests/status?claim=${encodeURIComponent(claim)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return;
+  if (data.group_name && data.display_name && data.status === "pending") {
+    const wait = document.getElementById("group-request-wait");
+    if (wait) wait.textContent = `Đang chờ chủ nhóm duyệt máy “${data.display_name}” vào ${data.group_name}.`;
+  }
+  if (data.status === "approved" && data.token) {
+    if (joinTimer) clearInterval(joinTimer);
+    joinTimer = null;
+    localStorage.removeItem(JOIN_CLAIM_KEY);
+    stripJoinParam();
+    await acceptGroupLogin({ token: data.token });
+    showToast("Chủ nhóm đã duyệt. Bạn đã vào nhóm.");
+    return;
+  }
+  if (data.status === "rejected" || data.status === "revoked") {
+    if (joinTimer) clearInterval(joinTimer);
+    joinTimer = null;
+    localStorage.removeItem(JOIN_CLAIM_KEY);
+    const wait = document.getElementById("group-request-wait");
+    if (wait) wait.classList.add("hidden");
+    const form = document.getElementById("form-join-request");
+    if (form) form.classList.remove("hidden");
+    showGroupError(data.status === "rejected" ? "Chủ nhóm chưa cho máy này vào." : "Máy này không còn được vào nhóm.");
+  }
+}
+
+function openShareSheet() {
+  if (!state.group) return;
+  const sheet = document.getElementById("share-sheet");
+  const preview = document.getElementById("share-link-preview");
+  const more = document.getElementById("share-more");
+  if (preview) preview.textContent = inviteLink();
+  if (more) more.classList.toggle("hidden", typeof navigator.share !== "function");
+  if (sheet) sheet.classList.remove("hidden");
+}
+
+function closeShareSheet() {
+  const sheet = document.getElementById("share-sheet");
+  if (sheet) sheet.classList.add("hidden");
+}
+
+function openZaloShare(url) {
+  const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ url }))));
+  window.open(`https://button-share.zalo.me/share_external?d=${encodeURIComponent(payload)}`, "_blank", "noopener");
+}
+
+function openMessengerShare(url) {
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = `fb-messenger://share/?link=${encodeURIComponent(url)}`;
+    return;
+  }
+  copyGroupText(url, "Đã sao chép link. Hãy dán vào Messenger.");
+}
+
+async function downloadBackup() {
+  const res = await fetch("/api/group/backup", { headers: authHeaders() });
+  if (res.status === 401) {
+    dropGroupAccess();
+    return;
+  }
+  if (!res.ok) {
+    showToast("Không tải được bản lưu.");
+    return;
+  }
+  const blob = await res.blob();
+  const link = document.createElement("a");
+  const named = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/);
+  link.href = URL.createObjectURL(blob);
+  link.download = named ? named[1] : "smashpay-backup.db";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+  showToast("Đã tải bản lưu về máy.");
+}
+
 function bindGroupEvents() {
   const createForm = document.getElementById("form-create-group");
   const joinForm = document.getElementById("form-join-group");
+  const requestForm = document.getElementById("form-join-request");
   const claimBtn = document.getElementById("btn-claim-legacy");
   if (createForm) {
     createForm.addEventListener("submit", async (e) => {
@@ -364,7 +681,7 @@ function bindGroupEvents() {
           return;
         }
         await acceptGroupLogin(data);
-        showToast("Đã tạo nhóm. Gửi mã mời cho bạn cùng chơi, và giữ mã chủ để lấy lại quyền.");
+        showToast("Đã tạo nhóm. Bấm Mời để gửi link, và giữ mã chủ.");
       } catch (err) {
         showGroupError(err.message || "Không tạo được nhóm.");
       }
@@ -376,6 +693,13 @@ function bindGroupEvents() {
       showGroupError("");
       const code = document.getElementById("group-join-code").value.trim();
       try {
+        const info = await lookupCode(code);
+        if (info.kind === "invite") {
+          showRequestForm(code, info);
+          const nameInput = document.getElementById("group-request-name");
+          if (nameInput) nameInput.focus();
+          return;
+        }
         const res = await fetch("/api/groups/join", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -386,10 +710,33 @@ function bindGroupEvents() {
           showGroupError(errorDetail(data, "Không vào được nhóm."));
           return;
         }
+        stripJoinParam();
         await acceptGroupLogin(data);
-        showToast(data.group && data.group.role === "owner" ? "Đã vào lại với quyền chủ nhóm." : "Đã vào nhóm.");
+        showToast("Đã vào lại với quyền chủ nhóm.");
       } catch (err) {
         showGroupError(err.message || "Không vào được nhóm.");
+      }
+    });
+  }
+  if (requestForm) {
+    requestForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showGroupError("");
+      const displayName = document.getElementById("group-request-name").value.trim();
+      try {
+        const res = await fetch("/api/groups/requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: state.joinCode, display_name: displayName }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showGroupError(errorDetail(data, "Không gửi được yêu cầu."));
+          return;
+        }
+        beginJoinWait(data.claim_code, data.group_name, data.display_name);
+      } catch (err) {
+        showGroupError(err.message || "Không gửi được yêu cầu.");
       }
     });
   }
@@ -413,24 +760,116 @@ function bindGroupEvents() {
   const copyInvite = document.getElementById("btn-copy-invite");
   const copyOwner = document.getElementById("btn-copy-owner");
   const leaveBtn = document.getElementById("btn-leave-group");
+  const shareBtn = document.getElementById("btn-share-invite");
+  const devicesBtn = document.getElementById("btn-devices");
+  const backupBtn = document.getElementById("btn-download-backup");
+  const banner = document.getElementById("pending-banner");
   if (copyInvite) {
     copyInvite.addEventListener("click", () => {
-      if (!state.group) return;
-      copyGroupText(state.group.invite_code, "Đã sao chép mã mời.");
+      if (!state.group || !state.group.invite_code) return;
+      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`);
     });
   }
   if (copyOwner) {
     copyOwner.addEventListener("click", () => {
       if (!state.group || !state.group.owner_code) return;
-      copyGroupText(state.group.owner_code, "Đã sao chép mã chủ nhóm.");
+      copyGroupText(state.group.owner_code, `Đã sao chép mã chủ nhóm: ${state.group.owner_code}`);
     });
   }
   if (leaveBtn) {
     leaveBtn.addEventListener("click", () => {
-      if (!confirm("Rời nhóm trên máy này? Sổ vẫn giữ nguyên. Vào lại bằng mã mời hoặc mã chủ nhóm.")) return;
+      if (!confirm("Rời nhóm trên máy này? Sổ vẫn giữ nguyên. Vào lại bằng link mời hoặc mã chủ.")) return;
+      localStorage.removeItem(JOIN_CLAIM_KEY);
+      if (joinTimer) clearInterval(joinTimer);
       dropGroupAccess();
     });
   }
+  if (shareBtn) shareBtn.addEventListener("click", openShareSheet);
+  if (devicesBtn) devicesBtn.addEventListener("click", () => openDevices().catch((err) => showToast(err.message)));
+  if (banner) banner.addEventListener("click", () => openDevices().catch((err) => showToast(err.message)));
+  if (backupBtn) backupBtn.addEventListener("click", () => downloadBackup());
+  document.querySelectorAll("[data-close-share]").forEach((el) => {
+    el.addEventListener("click", closeShareSheet);
+  });
+  const shareZalo = document.getElementById("share-zalo");
+  const shareMessenger = document.getElementById("share-messenger");
+  const shareCopy = document.getElementById("share-copy");
+  const shareMore = document.getElementById("share-more");
+  if (shareZalo) {
+    shareZalo.addEventListener("click", () => {
+      const url = inviteLink();
+      if (!url) return;
+      openZaloShare(url);
+    });
+  }
+  if (shareMessenger) {
+    shareMessenger.addEventListener("click", () => {
+      const url = inviteLink();
+      if (!url) return;
+      openMessengerShare(url);
+    });
+  }
+  if (shareCopy) {
+    shareCopy.addEventListener("click", () => {
+      copyGroupText(inviteLink(), "Đã sao chép link mời.");
+    });
+  }
+  if (shareMore) {
+    shareMore.addEventListener("click", async () => {
+      const url = inviteLink();
+      if (!url || typeof navigator.share !== "function") {
+        copyGroupText(url, "Đã sao chép link mời.");
+        return;
+      }
+      try {
+        await navigator.share({ title: "SmashPay", text: inviteMessage(), url });
+      } catch (_) {}
+    });
+  }
+  const deviceModal = document.getElementById("modal-devices");
+  if (deviceModal) {
+    deviceModal.addEventListener("click", async (e) => {
+      const approve = e.target.closest("[data-approve-request]");
+      const reject = e.target.closest("[data-reject-request]");
+      const revoke = e.target.closest("[data-revoke-device]");
+      try {
+        if (approve) {
+          await api(`/api/group/requests/${approve.dataset.approveRequest}/approve`, { method: "POST" });
+          showToast("Đã duyệt máy này.");
+          await openDevices();
+        } else if (reject) {
+          await api(`/api/group/requests/${reject.dataset.rejectRequest}/reject`, { method: "POST" });
+          showToast("Đã từ chối.");
+          await openDevices();
+        } else if (revoke) {
+          if (!confirm("Gỡ máy này khỏi nhóm? Máy đó phải xin vào lại.")) return;
+          await api(`/api/group/devices/${encodeURIComponent(revoke.dataset.revokeDevice)}`, { method: "DELETE" });
+          showToast("Đã gỡ máy.");
+          await openDevices();
+        }
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+  }
+  const rotateBtn = document.getElementById("btn-rotate-invite");
+  if (rotateBtn) {
+    rotateBtn.addEventListener("click", async () => {
+      if (!confirm("Đổi link mời? Link cũ sẽ không xin vào được nữa. Máy đã duyệt vẫn ở trong nhóm.")) return;
+      try {
+        state.group = await api("/api/group/invite/rotate", { method: "POST" });
+        renderGroupBar();
+        const preview = document.getElementById("share-link-preview");
+        if (preview) preview.textContent = inviteLink();
+        showToast("Đã đổi link mời.");
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+  }
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeShareSheet();
+  });
 }
 
 function updateBodyScrollLock() {
@@ -560,15 +999,28 @@ async function initApp() {
   bindEvents();
   bindGroupEvents();
   initScoreboard();
-  if (!groupToken()) {
-    await openGroupGate();
+  const joinCode = new URLSearchParams(window.location.search).get("join");
+  if (groupToken()) {
+    try {
+      await enterGroup();
+      if (joinCode && state.group && normalizeCode(state.group.invite_code) === normalizeCode(joinCode)) {
+        stripJoinParam();
+      } else if (joinCode) {
+        showToast("Bạn đang ở một nhóm. Rời nhóm rồi mở lại link để xin vào nhóm khác.");
+      }
+      return;
+    } catch (_) {}
+  }
+  if (joinCode) {
+    await presentJoinLink(joinCode);
     return;
   }
-  try {
-    await enterGroup();
-  } catch (_) {
+  if (localStorage.getItem(JOIN_CLAIM_KEY)) {
     await openGroupGate();
+    beginJoinWait(localStorage.getItem(JOIN_CLAIM_KEY), "nhóm", "bạn");
+    return;
   }
+  await openGroupGate();
 }
 
 async function loadMembers() {
@@ -587,7 +1039,7 @@ async function openSession(sessionId) {
   state.current = await api(`/api/sessions/${sessionId}`);
   const url = new URL(window.location.href);
   url.searchParams.set("session", sessionId);
-  window.history.replaceState({}, "", url);
+  window.history.replaceState({}, "", url.pathname + url.search);
   renderCurrentSession();
   switchTab("session");
 }
@@ -1362,6 +1814,7 @@ async function submitSessionForm(e) {
     participant_ids: Array.from(state.sessionParticipantIds),
     participant_payers: Object.fromEntries(state.sessionCouplePairs),
   };
+  const sessionPayload = editId ? withSessionStamp(payload) : payload;
   if (!editId) {
     const useTemplate = document.getElementById("input-use-template").checked;
     const templateId = Number(document.getElementById("session-template-id").value);
@@ -1373,7 +1826,7 @@ async function submitSessionForm(e) {
   }
   try {
     const res = editId
-      ? await api(`/api/sessions/${editId}`, { method: "PUT", body: JSON.stringify(payload) })
+      ? await api(`/api/sessions/${editId}`, { method: "PUT", body: JSON.stringify(sessionPayload) })
       : await api("/api/sessions", { method: "POST", body: JSON.stringify(payload) });
     state.current = res;
     closeModal("modal-session");
@@ -1390,7 +1843,9 @@ async function submitSessionForm(e) {
 window.deleteSession = async function (id) {
   if (!confirm("Bạn chắc chắn muốn xóa buổi đánh này?")) return;
   try {
-    await api(`/api/sessions/${id}`, { method: "DELETE" });
+    const stamp = state.current && state.current.session.id === id ? sessionStamp() : "";
+    const query = stamp ? `?base_updated_at=${encodeURIComponent(stamp)}` : "";
+    await api(`/api/sessions/${id}${query}`, { method: "DELETE" });
     if (state.current && state.current.session.id === id) {
       state.current = null;
     }
@@ -1732,9 +2187,10 @@ async function submitExpenseForm(e) {
 
   try {
     const sessionId = state.current.session.id;
+    const stamped = withSessionStamp(payload);
     state.current = editId
-      ? await api(`/api/expenses/${editId}`, { method: "PUT", body: JSON.stringify(payload) })
-      : await api(`/api/sessions/${sessionId}/expenses`, { method: "POST", body: JSON.stringify(payload) });
+      ? await api(`/api/expenses/${editId}`, { method: "PUT", body: JSON.stringify(stamped) })
+      : await api(`/api/sessions/${sessionId}/expenses`, { method: "POST", body: JSON.stringify(stamped) });
     closeModal("modal-expense");
     renderCurrentSession();
     await loadSessions();
@@ -1747,7 +2203,9 @@ async function submitExpenseForm(e) {
 window.deleteExpense = async function (expenseId) {
   if (!confirm("Xóa khoản chi này?")) return;
   try {
-    state.current = await api(`/api/expenses/${expenseId}`, { method: "DELETE" });
+    const stamp = sessionStamp();
+    const query = stamp ? `?base_updated_at=${encodeURIComponent(stamp)}` : "";
+    state.current = await api(`/api/expenses/${expenseId}${query}`, { method: "DELETE" });
     renderCurrentSession();
     await loadSessions();
     showToast("Đã xóa khoản chi.");
@@ -2094,7 +2552,7 @@ function bindEvents() {
       try {
         state.current = await api(`/api/sessions/${state.current.session.id}/participants/${mId}/payer`, {
           method: "PUT",
-          body: JSON.stringify({ payer_member_id: payerId }),
+          body: JSON.stringify(withSessionStamp({ payer_member_id: payerId })),
         });
         closeModal("modal-couple-link");
         renderCurrentSession();

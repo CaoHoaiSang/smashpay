@@ -1,5 +1,7 @@
 import json
 import os
+import sqlite3
+import tempfile
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,12 +9,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from calculator import calculate_session_summary, session_is_settled
-from database import backup_db_daily, db_cursor, init_db, make_code
+from database import DB_PATH, backup_db_daily, db_cursor, init_db, make_code
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -67,10 +69,12 @@ class SessionUpdate(BaseModel):
     status: Optional[str] = Field(default=None, pattern="^(open|settled)$")
     participant_ids: Optional[List[int]] = None
     participant_payers: Optional[Dict[int, Optional[int]]] = None
+    base_updated_at: Optional[str] = None
 
 
 class ParticipantPayerUpdate(BaseModel):
     payer_member_id: Optional[int] = None
+    base_updated_at: Optional[str] = None
 
 
 class ExpenseItemIn(BaseModel):
@@ -90,6 +94,7 @@ class ExpenseIn(BaseModel):
     unit_fee: int = Field(default=5000, ge=0)
     participant_ids: List[int] = Field(default_factory=list)
     items: List[ExpenseItemIn] = Field(default_factory=list)
+    base_updated_at: Optional[str] = None
 
 
 class SettlementToggle(BaseModel):
@@ -105,6 +110,11 @@ class GroupJoin(BaseModel):
     code: str = Field(..., min_length=4, max_length=20)
 
 
+class GroupRequestIn(BaseModel):
+    code: str = Field(..., min_length=4, max_length=20)
+    display_name: str = Field(..., min_length=1, max_length=40)
+
+
 # ---------- Group access ----------
 
 
@@ -115,10 +125,11 @@ def require_access(authorization: Optional[str] = Header(default=None)) -> Dict[
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT t.token, t.role, t.group_id, g.name, g.invite_code, g.owner_code
+            SELECT t.token, t.role, t.group_id, t.label, t.device_key, t.status,
+                   g.name, g.invite_code, g.owner_code
             FROM access_tokens t
             JOIN groups g ON g.id = t.group_id
-            WHERE t.token = ?
+            WHERE t.token = ? AND t.status = 'active'
             """,
             (token,),
         )
@@ -146,13 +157,34 @@ def _public_group(access: Dict[str, Any]) -> Dict[str, Any]:
     return group
 
 
-def _issue_token(cur, group_id: int, role: str) -> str:
+def _issue_token(cur, group_id: int, role: str, label: str = "") -> str:
     token = make_code(24)
+    device_key = _fresh_device_key(cur)
     cur.execute(
-        "INSERT INTO access_tokens (token, group_id, role) VALUES (?, ?, ?)",
-        (token, group_id, role),
+        """
+        INSERT INTO access_tokens (token, group_id, role, label, device_key, status)
+        VALUES (?, ?, ?, ?, ?, 'active')
+        """,
+        (token, group_id, role, label.strip()[:40], device_key),
     )
     return token
+
+
+def _fresh_device_key(cur) -> str:
+    for _ in range(8):
+        key = make_code(12)
+        cur.execute("SELECT 1 FROM access_tokens WHERE device_key = ?", (key,))
+        if not cur.fetchone():
+            return key
+    raise HTTPException(status_code=500, detail="Không tạo được máy vào nhóm. Thử lại.")
+
+
+def _guard_fresh(updated_at: Optional[str], base_updated_at: Optional[str]) -> None:
+    if base_updated_at and updated_at and base_updated_at != updated_at:
+        raise HTTPException(
+            status_code=409,
+            detail="Buổi này vừa được sửa trên máy khác. Hãy tải lại.",
+        )
 
 
 def _assert_members_in_group(cur, member_ids: List[int], group_id: int) -> None:
@@ -630,6 +662,7 @@ def update_session(session_id: int, payload: SessionUpdate, access: Dict[str, An
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy buổi đánh cầu.")
+        _guard_fresh(row["updated_at"], payload.base_updated_at)
 
         title = payload.title.strip() if payload.title is not None else row["title"]
         played_at = payload.played_at.strip() if payload.played_at is not None else row["played_at"]
@@ -641,7 +674,7 @@ def update_session(session_id: int, payload: SessionUpdate, access: Dict[str, An
             """
             UPDATE sessions
             SET title = ?, played_at = ?, parking_fee = ?, notes = ?, status = ?,
-                updated_at = datetime('now', 'localtime')
+                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
             WHERE id = ? AND group_id = ?
             """,
             (title, played_at, parking_fee, notes, status, session_id, access["group_id"]),
@@ -685,14 +718,17 @@ def set_participant_payer(session_id: int, member_id: int, payload: ParticipantP
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT 1 FROM session_participants sp
+            SELECT s.updated_at
+            FROM session_participants sp
             JOIN sessions s ON s.id = sp.session_id
             WHERE sp.session_id = ? AND sp.member_id = ? AND s.group_id = ?
             """,
             (session_id, member_id, access["group_id"]),
         )
-        if not cur.fetchone():
+        found = cur.fetchone()
+        if not found:
             raise HTTPException(status_code=404, detail="Thành viên không nằm trong buổi đánh.")
+        _guard_fresh(found["updated_at"], payload.base_updated_at)
 
         payer = payload.payer_member_id
         if payer == member_id:
@@ -706,12 +742,21 @@ def set_participant_payer(session_id: int, member_id: int, payload: ParticipantP
             "UPDATE session_participants SET payer_member_id = ? WHERE session_id = ? AND member_id = ?",
             (payer, session_id, member_id),
         )
+        cur.execute(
+            "UPDATE sessions SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = ? AND group_id = ?",
+            (session_id, access["group_id"]),
+        )
         return _load_session_full(cur, session_id, access["group_id"])
 
 
 @app.delete("/api/sessions/{session_id}")
-def delete_session(session_id: int, access: Dict[str, Any] = Depends(require_access)):
+def delete_session(session_id: int, base_updated_at: Optional[str] = None, access: Dict[str, Any] = Depends(require_access)):
     with db_cursor() as cur:
+        cur.execute("SELECT updated_at FROM sessions WHERE id = ? AND group_id = ?", (session_id, access["group_id"]))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy buổi đánh cầu.")
+        _guard_fresh(row["updated_at"], base_updated_at)
         cur.execute("DELETE FROM sessions WHERE id = ? AND group_id = ?", (session_id, access["group_id"]))
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Không tìm thấy buổi đánh cầu.")
@@ -770,9 +815,14 @@ def _compute_stored_total(payload: ExpenseIn) -> int:
 @app.post("/api/sessions/{session_id}/expenses", status_code=201)
 def create_expense(session_id: int, payload: ExpenseIn, access: Dict[str, Any] = Depends(require_access)):
     with db_cursor() as cur:
-        cur.execute("SELECT id FROM sessions WHERE id = ? AND group_id = ?", (session_id, access["group_id"]))
-        if not cur.fetchone():
+        cur.execute(
+            "SELECT updated_at FROM sessions WHERE id = ? AND group_id = ?",
+            (session_id, access["group_id"]),
+        )
+        session_row = cur.fetchone()
+        if not session_row:
             raise HTTPException(status_code=404, detail="Không tìm thấy buổi đánh cầu.")
+        _guard_fresh(session_row["updated_at"], payload.base_updated_at)
         _assert_members_in_group(cur, _expense_member_ids(payload), access["group_id"])
 
         stored_total = _compute_stored_total(payload)
@@ -795,7 +845,7 @@ def create_expense(session_id: int, payload: ExpenseIn, access: Dict[str, Any] =
         expense_id = cur.lastrowid
         _write_expense_children(cur, expense_id, payload)
         cur.execute(
-            "UPDATE sessions SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+            "UPDATE sessions SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = ?",
             (session_id,),
         )
         return _load_session_full(cur, session_id, access["group_id"])
@@ -806,7 +856,7 @@ def update_expense(expense_id: int, payload: ExpenseIn, access: Dict[str, Any] =
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT e.session_id
+            SELECT e.session_id, s.updated_at
             FROM expenses e
             JOIN sessions s ON s.id = e.session_id
             WHERE e.id = ? AND s.group_id = ?
@@ -817,6 +867,7 @@ def update_expense(expense_id: int, payload: ExpenseIn, access: Dict[str, Any] =
         if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy khoản chi.")
         session_id = row["session_id"]
+        _guard_fresh(row["updated_at"], payload.base_updated_at)
         _assert_members_in_group(cur, _expense_member_ids(payload), access["group_id"])
 
         stored_total = _compute_stored_total(payload)
@@ -840,18 +891,18 @@ def update_expense(expense_id: int, payload: ExpenseIn, access: Dict[str, Any] =
         )
         _write_expense_children(cur, expense_id, payload)
         cur.execute(
-            "UPDATE sessions SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+            "UPDATE sessions SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = ?",
             (session_id,),
         )
         return _load_session_full(cur, session_id, access["group_id"])
 
 
 @app.delete("/api/expenses/{expense_id}")
-def delete_expense(expense_id: int, access: Dict[str, Any] = Depends(require_access)):
+def delete_expense(expense_id: int, base_updated_at: Optional[str] = None, access: Dict[str, Any] = Depends(require_access)):
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT e.session_id
+            SELECT e.session_id, s.updated_at
             FROM expenses e
             JOIN sessions s ON s.id = e.session_id
             WHERE e.id = ? AND s.group_id = ?
@@ -862,9 +913,10 @@ def delete_expense(expense_id: int, access: Dict[str, Any] = Depends(require_acc
         if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy khoản chi.")
         session_id = row["session_id"]
+        _guard_fresh(row["updated_at"], base_updated_at)
         cur.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         cur.execute(
-            "UPDATE sessions SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+            "UPDATE sessions SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = ?",
             (session_id,),
         )
         return _load_session_full(cur, session_id, access["group_id"])
@@ -926,21 +978,98 @@ def create_group(payload: GroupCreate):
         return _group_login(cur, cur.fetchone(), "owner")
 
 
-@app.post("/api/groups/join")
-def join_group(payload: GroupJoin):
-    code = _normalize_code(payload.code)
+def _find_group_by_code(cur, raw_code: str):
+    code = _normalize_code(raw_code)
     if len(code) < 4:
         raise HTTPException(status_code=400, detail="Mã nhóm chưa đúng.")
+    cur.execute(
+        "SELECT * FROM groups WHERE invite_code = ? OR owner_code = ?",
+        (code, code),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nhóm với mã này.")
+    return code, row
+
+
+@app.get("/api/groups/lookup")
+def lookup_group(code: str):
+    with db_cursor() as cur:
+        normalized, row = _find_group_by_code(cur, code)
+        kind = "owner" if row["owner_code"] == normalized else "invite"
+        return {
+            "kind": kind,
+            "name": row["name"],
+            "needs_owner": _legacy_unclaimed(cur),
+        }
+
+
+@app.post("/api/groups/join")
+def join_group(payload: GroupJoin):
+    with db_cursor() as cur:
+        code, row = _find_group_by_code(cur, payload.code)
+        if row["owner_code"] != code:
+            raise HTTPException(
+                status_code=400,
+                detail="Mã mời cần gõ tên và chờ chủ nhóm duyệt.",
+            )
+        return _group_login(cur, row, "owner")
+
+
+@app.post("/api/groups/requests", status_code=202)
+def create_join_request(payload: GroupRequestIn):
+    name = payload.display_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Hãy nhập tên để chủ nhóm nhận ra máy này.")
+    with db_cursor() as cur:
+        code, row = _find_group_by_code(cur, payload.code)
+        if row["owner_code"] == code:
+            raise HTTPException(status_code=400, detail="Mã chủ vào thẳng, không cần chờ duyệt.")
+        if _legacy_unclaimed(cur):
+            raise HTTPException(status_code=409, detail="Nhóm này chưa có chủ để duyệt. Nhờ người giữ sổ nhận nhóm trước.")
+        claim = make_code(24)
+        cur.execute(
+            """
+            INSERT INTO join_requests (group_id, display_name, claim_code, status)
+            VALUES (?, ?, ?, 'pending')
+            """,
+            (row["id"], name[:40], claim),
+        )
+        return {
+            "pending": True,
+            "claim_code": claim,
+            "group_name": row["name"],
+            "display_name": name[:40],
+        }
+
+
+@app.get("/api/groups/requests/status")
+def join_request_status(claim: str):
+    code = _normalize_code(claim)
     with db_cursor() as cur:
         cur.execute(
-            "SELECT * FROM groups WHERE invite_code = ? OR owner_code = ?",
-            (code, code),
+            """
+            SELECT r.status, r.access_token, r.display_name, g.name
+            FROM join_requests r
+            JOIN groups g ON g.id = r.group_id
+            WHERE r.claim_code = ?
+            """,
+            (code,),
         )
         row = cur.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Không tìm thấy nhóm với mã này.")
-        role = "owner" if row["owner_code"] == code else "member"
-        return _group_login(cur, row, role)
+            raise HTTPException(status_code=404, detail="Không thấy yêu cầu vào nhóm.")
+        body = {"status": row["status"], "group_name": row["name"], "display_name": row["display_name"]}
+        if row["status"] == "approved" and row["access_token"]:
+            cur.execute(
+                "SELECT 1 FROM access_tokens WHERE token = ? AND status = 'active'",
+                (row["access_token"],),
+            )
+            if cur.fetchone():
+                body["token"] = row["access_token"]
+            else:
+                body["status"] = "revoked"
+        return body
 
 
 @app.post("/api/groups/claim-legacy")
@@ -955,6 +1084,162 @@ def claim_legacy():
 @app.get("/api/group")
 def get_current_group(access: Dict[str, Any] = Depends(require_access)):
     return _public_group(access)
+
+
+@app.get("/api/group/requests")
+def list_join_requests(access: Dict[str, Any] = Depends(require_owner)):
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, display_name, created_at
+            FROM join_requests
+            WHERE group_id = ? AND status = 'pending'
+            ORDER BY id ASC
+            """,
+            (access["group_id"],),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+@app.post("/api/group/requests/{request_id}/approve")
+def approve_join_request(request_id: int, access: Dict[str, Any] = Depends(require_owner)):
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT * FROM join_requests WHERE id = ? AND group_id = ? AND status = 'pending'",
+            (request_id, access["group_id"]),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không còn yêu cầu này.")
+        token = _issue_token(cur, access["group_id"], "member", row["display_name"])
+        cur.execute(
+            """
+            UPDATE join_requests
+            SET status = 'approved', access_token = ?, resolved_at = datetime('now', 'localtime')
+            WHERE id = ?
+            """,
+            (token, request_id),
+        )
+        return {"ok": True}
+
+
+@app.post("/api/group/requests/{request_id}/reject")
+def reject_join_request(request_id: int, access: Dict[str, Any] = Depends(require_owner)):
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            UPDATE join_requests
+            SET status = 'rejected', resolved_at = datetime('now', 'localtime')
+            WHERE id = ? AND group_id = ? AND status = 'pending'
+            """,
+            (request_id, access["group_id"]),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Không còn yêu cầu này.")
+        return {"ok": True}
+
+
+@app.get("/api/group/devices")
+def list_devices(access: Dict[str, Any] = Depends(require_owner)):
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            SELECT device_key, label, role, created_at, token
+            FROM access_tokens
+            WHERE group_id = ? AND status = 'active'
+            ORDER BY created_at ASC, rowid ASC
+            """,
+            (access["group_id"],),
+        )
+        devices = []
+        for row in cur.fetchall():
+            label = (row["label"] or "").strip()
+            if not label:
+                label = "Chủ nhóm" if row["role"] == "owner" else "Máy đã vào"
+            devices.append(
+                {
+                    "device_key": row["device_key"],
+                    "label": label,
+                    "role": row["role"],
+                    "created_at": row["created_at"],
+                    "is_current": row["token"] == access["token"],
+                }
+            )
+        return devices
+
+
+@app.delete("/api/group/devices/{device_key}")
+def revoke_device(device_key: str, access: Dict[str, Any] = Depends(require_owner)):
+    key = _normalize_code(device_key)
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            SELECT token, role FROM access_tokens
+            WHERE group_id = ? AND device_key = ? AND status = 'active'
+            """,
+            (access["group_id"], key),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không thấy máy này.")
+        if row["token"] == access["token"]:
+            raise HTTPException(status_code=400, detail="Máy này đang dùng. Hãy bấm Rời nhóm nếu muốn thoát.")
+        if row["role"] == "owner":
+            cur.execute(
+                """
+                SELECT COUNT(*) AS n FROM access_tokens
+                WHERE group_id = ? AND role = 'owner' AND status = 'active'
+                """,
+                (access["group_id"],),
+            )
+            if cur.fetchone()["n"] <= 1:
+                raise HTTPException(status_code=400, detail="Hãy giữ ít nhất một máy chủ nhóm.")
+        cur.execute(
+            "DELETE FROM access_tokens WHERE token = ? AND group_id = ?",
+            (row["token"], access["group_id"]),
+        )
+        return {"ok": True}
+
+
+@app.post("/api/group/invite/rotate")
+def rotate_invite(access: Dict[str, Any] = Depends(require_owner)):
+    with db_cursor() as cur:
+        cur.execute(
+            "UPDATE groups SET invite_code = ? WHERE id = ?",
+            (_fresh_code(cur, "invite_code", 6), access["group_id"]),
+        )
+        cur.execute("SELECT invite_code, owner_code, name FROM groups WHERE id = ?", (access["group_id"],))
+        row = cur.fetchone()
+    access = dict(access)
+    access["invite_code"] = row["invite_code"]
+    access["name"] = row["name"]
+    access["owner_code"] = row["owner_code"]
+    return _public_group(access)
+
+
+@app.get("/api/group/backup")
+def download_group_backup(access: Dict[str, Any] = Depends(require_owner)):
+    del access
+    fd, name = tempfile.mkstemp(suffix=".db", dir=str(DB_PATH.parent))
+    os.close(fd)
+    path = Path(name)
+    source = sqlite3.connect(DB_PATH)
+    target = sqlite3.connect(path)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+        source.close()
+    try:
+        payload = path.read_bytes()
+    finally:
+        path.unlink(missing_ok=True)
+    filename = f"smashpay-{datetime.now().strftime('%Y%m%d')}.db"
+    return Response(
+        content=payload,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------- Health & Static Frontend ----------

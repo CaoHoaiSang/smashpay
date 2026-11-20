@@ -121,12 +121,29 @@ def test_groups_isolate_ledgers_and_backup():
         assert mixed.status_code == 400
 
         invite = legacy["group"]["invite_code"]
-        joined = client.post("/api/groups/join", json={"code": f" {invite.lower()} "})
-        assert joined.status_code == 200
-        member_token = joined.json()["token"]
-        assert joined.json()["group"]["role"] == "member"
-        assert "owner_code" not in joined.json()["group"]
-        assert client.get("/api/group", headers=_auth(member_token)).json().get("owner_code") is None
+        direct = client.post("/api/groups/join", json={"code": f" {invite.lower()} "})
+        assert direct.status_code == 400
+        pending = client.post(
+            "/api/groups/requests",
+            json={"code": f" {invite.lower()} ", "display_name": "Máy Minh"},
+        )
+        assert pending.status_code == 202
+        claim = pending.json()["claim_code"]
+        assert client.get("/api/groups/requests/status", params={"claim": claim}).json()["status"] == "pending"
+        waiting = client.get("/api/group/requests", headers=_auth(token_a)).json()
+        assert waiting[0]["display_name"] == "Máy Minh"
+        assert client.post(
+            f"/api/group/requests/{waiting[0]['id']}/approve",
+            headers=_auth(token_b),
+        ).status_code == 404
+        assert client.post(
+            f"/api/group/requests/{waiting[0]['id']}/approve",
+            headers=_auth(token_a),
+        ).status_code == 200
+        approved = client.get("/api/groups/requests/status", params={"claim": claim}).json()
+        assert approved["status"] == "approved"
+        member_token = approved["token"]
+        assert "owner_code" not in client.get("/api/group", headers=_auth(member_token)).json()
         assert client.delete(f"/api/members/{old_member['id']}", headers=_auth(member_token)).status_code == 403
         assert (
             client.put(
@@ -144,6 +161,34 @@ def test_groups_isolate_ledgers_and_backup():
         assert owner_again.status_code == 200
         assert owner_again.json()["group"]["role"] == "owner"
         assert owner_again.json()["group"]["owner_code"] == legacy["group"]["owner_code"]
+
+        fresh = client.get(f"/api/sessions/{old_session['id']}", headers=_auth(token_a)).json()
+        stamp = fresh["session"]["updated_at"]
+        renamed = client.put(
+            f"/api/sessions/{old_session['id']}",
+            headers=_auth(token_a),
+            json={"title": "Buổi cũ đã sửa", "base_updated_at": stamp},
+        )
+        assert renamed.status_code == 200
+        stale = client.put(
+            f"/api/sessions/{old_session['id']}",
+            headers=_auth(token_a),
+            json={"title": "Ghi đè", "base_updated_at": stamp},
+        )
+        assert stale.status_code == 409
+
+        backup = client.get("/api/group/backup", headers=_auth(token_a))
+        assert backup.status_code == 200
+        assert backup.content.startswith(b"SQLite format 3")
+        assert client.get("/api/group/backup", headers=_auth(member_token)).status_code == 403
+
+        rotated = client.post("/api/group/invite/rotate", headers=_auth(token_a))
+        assert rotated.status_code == 200
+        assert rotated.json()["invite_code"] != invite
+        assert client.post(
+            "/api/groups/requests",
+            json={"code": invite, "display_name": "Link cũ"},
+        ).status_code == 404
 
         assert client.get("/api/members").status_code == 401
         assert client.post("/api/groups/join", json={"code": "KHONGTONTAI"}).status_code == 404

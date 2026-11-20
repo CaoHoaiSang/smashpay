@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=4.3" />
+  <link rel="stylesheet" href="/static/styles.css?v=4.5" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -24,7 +24,7 @@
         <h2>SmashPay</h2>
         <span class="brand-badge-pro">PRO</span>
       </div>
-      <p class="muted">Mỗi nhóm có sổ riêng. Mã mời để bạn cùng chơi ghi buổi. Mã chủ nhóm để lấy lại quyền chủ trên máy khác.</p>
+      <p class="muted">Mỗi nhóm có sổ riêng. Mời bằng link: người nhận gõ tên và chờ duyệt. Mã chủ nhóm để lấy lại quyền trên máy khác.</p>
       <div id="group-gate-error" class="warning-banner hidden"></div>
       <div id="group-claim-box" class="group-claim-box hidden">
         <p>Sổ đang dùng trên máy này chưa có chủ. Nhận sổ để giữ nguyên thành viên và các buổi đánh.</p>
@@ -36,10 +36,19 @@
         <button class="btn btn-primary btn-gradient" type="submit">Tạo nhóm</button>
       </form>
       <div class="group-divider">hoặc</div>
+      <div id="group-request-box" class="group-claim-box hidden">
+        <p id="group-request-intro"></p>
+        <form id="form-join-request">
+          <label for="group-request-name">Tên của bạn</label>
+          <input id="group-request-name" type="text" maxlength="40" placeholder="Để chủ nhóm nhận ra máy này" required />
+          <button class="btn btn-primary btn-gradient" type="submit">Xin vào nhóm</button>
+        </form>
+        <p id="group-request-wait" class="hidden"></p>
+      </div>
       <form id="form-join-group">
-        <label for="group-join-code">Mã mời hoặc mã chủ nhóm</label>
-        <input id="group-join-code" type="text" maxlength="20" placeholder="Nhập mã" required autocapitalize="characters" autocomplete="off" />
-        <button class="btn btn-secondary" type="submit">Vào nhóm</button>
+        <label for="group-join-code">Mã mời hoặc mã chủ</label>
+        <input id="group-join-code" type="text" maxlength="24" placeholder="Mã mời thì chờ duyệt. Mã chủ vào thẳng." required autocapitalize="characters" autocomplete="off" />
+        <button class="btn btn-secondary" type="submit">Tiếp tục</button>
       </form>
     </div>
   </div>
@@ -77,21 +86,60 @@
       </nav>
     </div>
     <div id="group-bar" class="group-bar hidden">
-      <div class="group-bar-main">
-        <strong id="group-bar-name"></strong>
-        <span id="group-bar-role" class="badge badge-neutral"></span>
+      <div class="group-identity">
+        <div class="group-name-wrap">
+          <svg class="group-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <strong id="group-bar-name" class="group-title"></strong>
+        </div>
+        <span id="group-bar-role" class="badge group-role-badge"></span>
       </div>
-      <div class="group-bar-codes">
-        <span>Mã mời <code id="group-invite-code"></code></span>
-        <button id="btn-copy-invite" class="btn btn-secondary btn-xs" type="button">Sao chép</button>
-        <span class="owner-only">Mã chủ <code id="group-owner-code"></code></span>
-        <button id="btn-copy-owner" class="btn btn-secondary btn-xs owner-only" type="button">Sao chép mã chủ</button>
-        <button id="btn-leave-group" class="btn btn-secondary btn-xs" type="button">Rời nhóm</button>
+      <div class="group-actions">
+        <!-- 1. Mã mời (Tần suất dùng cao nhất) -->
+        <div class="group-chip group-chip-invite" title="Mã mời thành viên vào nhóm">
+          <span class="group-chip-label">Mã mời</span>
+          <code id="group-invite-code" class="group-code"></code>
+          <button id="btn-copy-invite" class="btn-icon-copy" type="button" title="Sao chép mã mời" aria-label="Sao chép mã mời">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+          <button id="btn-share-invite" class="btn btn-primary btn-xs btn-share-invite owner-only" type="button" title="Gửi link mời qua Zalo / Messenger">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <span>Mời</span>
+          </button>
+        </div>
+
+        <!-- 2. Quản lý duyệt máy -->
+        <button id="btn-devices" class="btn btn-secondary btn-xs btn-devices-trigger owner-only" type="button" title="Quản lý máy & duyệt người vào nhóm">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="14" x="3" y="4" rx="2"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>
+          <span>Máy vào</span>
+          <span id="device-pending-count" class="pending-count hidden">0</span>
+        </button>
+
+        <!-- 3. Mã chủ nhóm (Chỉ chủ nhóm thấy) -->
+        <div class="group-chip group-chip-owner owner-only" title="Mã chủ nhóm bí mật (đăng nhập quyền chủ trên máy khác)">
+          <span class="group-chip-label">Mã chủ</span>
+          <code id="group-owner-code" class="group-code"></code>
+          <button id="btn-copy-owner" class="btn-icon-copy" type="button" title="Sao chép mã chủ nhóm" aria-label="Sao chép mã chủ nhóm">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+        </div>
+
+        <!-- 4. Sao lưu dữ liệu SQLite -->
+        <button id="btn-download-backup" class="btn btn-secondary btn-xs btn-backup-trigger owner-only" type="button" title="Tải file sao lưu dữ liệu SQLite">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Sao lưu</span>
+        </button>
+
+        <!-- 5. Rời nhóm (Đặt cuối cùng để tránh bấm nhầm) -->
+        <button id="btn-leave-group" class="btn btn-ghost-danger btn-xs btn-leave-trigger" type="button" title="Rời nhóm trên thiết bị này">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Rời nhóm</span>
+        </button>
       </div>
     </div>
   </header>
 
   <main class="container">
+    <button id="pending-banner" class="pending-banner hidden" type="button"></button>
     <!-- TAB 1: ACTIVE SESSION -->
     <section id="tab-session" class="tab-panel active">
       <div id="session-empty" class="card empty-state hidden">
@@ -959,8 +1007,58 @@
     </button>
   </nav>
 
+  <div id="modal-devices" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Máy đang vào nhóm">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Máy đang vào nhóm</h3>
+        <button class="icon-close" data-close-modal="modal-devices" aria-label="Đóng">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h4>Đang chờ duyệt</h4>
+        <div id="device-requests"></div>
+        <h4>Đã vào</h4>
+        <div id="device-list"></div>
+        <div class="device-actions">
+          <button type="button" class="btn btn-secondary" id="btn-rotate-invite">Đổi link mời</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="share-sheet" class="share-sheet hidden" role="dialog" aria-label="Chia sẻ lời mời">
+    <button class="share-sheet-backdrop" type="button" data-close-share aria-label="Đóng"></button>
+    <div class="share-sheet-panel">
+      <div class="share-sheet-handle"></div>
+      <h3>Mời vào nhóm</h3>
+      <p class="muted small">Người nhận mở link, gõ tên và chờ bạn duyệt. Link không tự cho vào sổ.</p>
+      <p id="share-link-preview" class="share-link-preview"></p>
+      <div class="share-apps">
+        <button type="button" class="share-app" id="share-zalo">
+          <span class="share-app-icon share-app-zalo">Z</span>
+          <span>Zalo</span>
+        </button>
+        <button type="button" class="share-app" id="share-messenger">
+          <span class="share-app-icon share-app-messenger">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 7 2 12.1c0 2.9 1.4 5.4 3.7 7.1V21l3.3-1.8c.9.2 1.9.4 2.9.4 5.5 0 10-4 10-9.1S17.5 3 12 3zm1 12.2-2.5-2.7-4.9 2.7 5.4-5.7 2.6 2.7 4.8-2.7-5.4 5.7z"/></svg>
+          </span>
+          <span>Messenger</span>
+        </button>
+        <button type="button" class="share-app" id="share-copy">
+          <span class="share-app-icon share-app-copy">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </span>
+          <span>Sao chép</span>
+        </button>
+        <button type="button" class="share-app hidden" id="share-more">
+          <span class="share-app-icon share-app-more">+</span>
+          <span>Thêm</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=4.3"></script>
+  <script src="/static/app.js?v=4.5"></script>
 </body>
 </html>

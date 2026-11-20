@@ -178,7 +178,46 @@ def init_db() -> None:
             cur.execute("ALTER TABLE sessions ADD COLUMN group_id INTEGER REFERENCES groups(id)")
         except sqlite3.OperationalError:
             pass
+        _ensure_access_extras(cur)
         _attach_legacy_rows(cur)
+
+
+def _ensure_access_extras(cur) -> None:
+    for stmt in (
+        "ALTER TABLE access_tokens ADD COLUMN label TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE access_tokens ADD COLUMN device_key TEXT",
+        "ALTER TABLE access_tokens ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+    ):
+        try:
+            cur.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS join_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            display_name TEXT NOT NULL,
+            claim_code TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            access_token TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            resolved_at TEXT,
+            FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+        )
+        """
+    )
+    cur.execute("SELECT token FROM access_tokens WHERE device_key IS NULL OR device_key = ''")
+    missing = [row["token"] for row in cur.fetchall()]
+    for token in missing:
+        for _ in range(8):
+            key = make_code(12)
+            cur.execute("SELECT 1 FROM access_tokens WHERE device_key = ?", (key,))
+            if cur.fetchone():
+                continue
+            cur.execute("UPDATE access_tokens SET device_key = ? WHERE token = ?", (key, token))
+            break
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_access_device_key ON access_tokens(device_key)")
 
 
 def _attach_legacy_rows(cur) -> None:
