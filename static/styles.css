@@ -60,7 +60,7 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Inter", "Plus Jakarta Sans", -apple-system-body, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg);
   background-image: radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
                     radial-gradient(at 100% 0%, rgba(37, 99, 235, 0.03) 0px, transparent 50%);
@@ -69,6 +69,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .hidden {
@@ -3042,7 +3043,7 @@ textarea:focus {
   font-size: min(22vw, 120px);
   font-weight: 900;
   line-height: 1;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, monospace;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: -2px;
   color: #ffffff;
@@ -3241,6 +3242,76 @@ textarea:focus {
   background: rgba(5, 150, 105, 0.35);
   color: #a7f3d0;
   border-color: #10b981;
+}
+
+.sb-voice-help {
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  padding: 0 12px;
+}
+
+.sb-voice-help summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 0;
+  color: var(--text);
+}
+
+.sb-voice-help ul {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.sb-voice-help li + li {
+  margin-top: 6px;
+}
+
+.scoreboard-card {
+  position: relative;
+}
+
+.sb-win-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: inherit;
+}
+
+.sb-win-card {
+  width: min(360px, 100%);
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.sb-win-kicker {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sb-win-card h3 {
+  margin: 6px 0;
+  font-size: 22px;
+}
+
+.sb-win-card p {
+  margin: 0 0 14px;
+  color: var(--text-muted);
 }
 
 .sb-voice-text {

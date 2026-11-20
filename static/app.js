@@ -2216,7 +2216,7 @@ function undoScore() {
 function swapSides() {
   scoreState.isSwapped = !scoreState.isSwapped;
   syncBoardOrder();
-  showToast("Đã đổi sân thi đấu ⇄");
+  showToast("Đã đổi sân thi đấu.");
 }
 
 function resetSet() {
@@ -2331,16 +2331,23 @@ const scoreVoiceState = {
   reconnectTimer: null,
 };
 
+function getScoreAudioCtx() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!scoreVoiceState.audioCtx) scoreVoiceState.audioCtx = new AudioCtx();
+  if (scoreVoiceState.audioCtx.state === "suspended") scoreVoiceState.audioCtx.resume();
+  return scoreVoiceState.audioCtx;
+}
+
 function playVoiceChime() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const ctx = getScoreAudioCtx();
+    if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
     gain.gain.setValueAtTime(0.12, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     osc.connect(gain);
@@ -2348,6 +2355,59 @@ function playVoiceChime() {
     osc.start();
     osc.stop(ctx.currentTime + 0.13);
   } catch (e) {}
+}
+
+function primeSpeechOutput() {
+  if (!window.speechSynthesis) return;
+  const utter = new SpeechSynthesisUtterance(" ");
+  utter.volume = 0;
+  utter.lang = "vi-VN";
+  window.speechSynthesis.speak(utter);
+}
+
+function playMatchWinCelebration(winnerName, setsA, setsB) {
+  try {
+    const ctx = getScoreAudioCtx();
+    if (ctx) {
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + index * 0.16;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.42);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.44);
+      });
+    }
+  } catch (e) {}
+  if (window.speechSynthesis) {
+    const utter = new SpeechSynthesisUtterance(
+      `Chúc mừng ${winnerName}. ${winnerName} thắng cuộc. Tỷ số ván ${setsA} ${setsB}.`
+    );
+    utter.lang = "vi-VN";
+    utter.rate = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+function showMatchWin(winnerName, setsA, setsB) {
+  const overlay = document.getElementById("sb-win-overlay");
+  const title = document.getElementById("sb-win-title");
+  const detail = document.getElementById("sb-win-detail");
+  if (title) title.textContent = `Chúc mừng ${winnerName}`;
+  if (detail) detail.textContent = `${winnerName} thắng cuộc, tỷ số ván ${setsA} - ${setsB}.`;
+  if (overlay) overlay.classList.remove("hidden");
+  playMatchWinCelebration(winnerName, setsA, setsB);
+}
+
+function hideMatchWin() {
+  document.getElementById("sb-win-overlay")?.classList.add("hidden");
 }
 
 function foldVi(str) {
@@ -2375,127 +2435,170 @@ function interpretScorePair(n1, n2, curA, curB) {
     { scoreA: expandSpokenScore(n1, curA), scoreB: expandSpokenScore(n2, curB) },
     { scoreA: expandSpokenScore(n2, curA), scoreB: expandSpokenScore(n1, curB) },
   ];
+  const ranked = [];
   for (const opt of candidates) {
-    const aPlus = opt.scoreA === curA + 1 && opt.scoreB === curB;
-    const bPlus = opt.scoreB === curB + 1 && opt.scoreA === curA;
-    if (aPlus || bPlus) return { ...opt, winnerSide: aPlus ? "A" : "B" };
+    const dA = opt.scoreA - curA;
+    const dB = opt.scoreB - curB;
+    const oneStep = (dA === 1 && dB === 0) || (dA === 0 && dB === 1);
+    if (dA === 0 && dB === 0) {
+      ranked.push({ ...opt, winnerSide: null, exact: false, unchanged: true });
+      continue;
+    }
+    if (!oneStep) continue;
+    ranked.push({
+      ...opt,
+      winnerSide: dA === 1 ? "A" : "B",
+      exact: true,
+      unchanged: false,
+    });
   }
-  if (curA === 0 && curB === 0 && n1 <= 30 && n2 <= 30) {
-    return { scoreA: n1, scoreB: n2, winnerSide: n1 > 0 ? "A" : n2 > 0 ? "B" : null };
+  const changed = ranked.find((item) => !item.unchanged);
+  if (changed) return changed;
+  return ranked[0] || null;
+}
+
+function applySpokenDeuce(n, curA, curB) {
+  if (n < 0 || n > 30) return null;
+  let target = n;
+  if (curA >= 10 && curB >= 10 && n <= 9) {
+    target = expandSpokenScore(n, Math.max(curA, curB));
   }
-  return null;
+  const dA = target - curA;
+  const dB = target - curB;
+  const onePoint = (dA === 1 && dB === 0) || (dA === 0 && dB === 1);
+  const firstDeuce = curA === 0 && curB === 0 && target === 1;
+  if (!onePoint && !firstDeuce && !(dA === 0 && dB === 0)) return null;
+  return {
+    action: "set_score",
+    scoreA: target,
+    scoreB: target,
+    winnerSide: dA === 1 ? "A" : "B",
+    unchanged: dA === 0 && dB === 0,
+    desc: `${target} đều`,
+  };
 }
 
 function parseVoiceScore(rawText, curA, curB, nameA, nameB) {
-  let text = (rawText || "").toLowerCase().trim();
-  if (!text) return null;
+  const folded = foldVi(rawText).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!folded) return null;
 
-  // 1. Control commands
-  if (/(hoàn tác|quay lại|lùi lại|trừ điểm|bỏ điểm|undo)/i.test(text)) {
+  if (/\b(hoan tac|quay lai|lui lai|tru diem|bo diem|undo|sai roi|nham roi)\b/.test(folded)) {
     return { action: "undo", desc: "Hoàn tác 1 điểm" };
   }
-  if (/(đổi sân|đổi bên|swap)/i.test(text)) {
+  if (/\b(doi san|doi ben|doi cho|swap)\b/.test(folded)) {
     return { action: "swap", desc: "Đổi sân thi đấu" };
   }
-  if (/(làm mới|trận mới|về không)/i.test(text)) {
+  if (/\b(lam moi|tran moi|ve khong|reset|dau lai)\b/.test(folded)) {
     return { action: "reset", desc: "Làm mới trận đấu" };
   }
 
-  // 2. Relative point for team: 'đội a', 'bên a', 'a được điểm', 'điểm a' or custom team names
-  const cleanNameA = (nameA || "").trim().toLowerCase();
-  const cleanNameB = (nameB || "").trim().toLowerCase();
+  const numberWords = new Set([
+    "khong", "ko", "mot", "hai", "ba", "bon", "tu", "nam", "lam", "sau", "bay", "tam", "chin", "muoi",
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  ]);
+  const cleanA = foldVi(nameA);
+  const cleanB = foldVi(nameB);
+  const nameHit = (clean) => {
+    if (!clean || clean.length < 2 || numberWords.has(clean) || clean === "doi a" || clean === "doi b") return false;
+    const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("\\b" + escaped + "\\b").test(folded);
+  };
   const matchA =
-    /(đội a|bên a|điểm a|cho a|cộng a|a thắng|a điểm|^a$)/i.test(text) ||
-    (cleanNameA && cleanNameA !== "đội a" && text.includes(cleanNameA));
+    /\b(doi a|ben a|diem a|cho a|cong a|a thang|a diem|a an|a len|team a)\b/.test(folded) ||
+    /^(a|e|ay)$/.test(folded) ||
+    nameHit(cleanA);
   const matchB =
-    /(đội b|bên b|điểm b|cho b|cộng b|b thắng|b điểm|^b$)/i.test(text) ||
-    (cleanNameB && cleanNameB !== "đội b" && text.includes(cleanNameB));
-
+    /\b(doi b|ben b|diem b|cho b|cong b|b thang|b diem|b an|b len|team b|doi be|ben be)\b/.test(folded) ||
+    /^(b|be|bi)$/.test(folded) ||
+    nameHit(cleanB);
   if (matchA && !matchB) return { action: "add_A", desc: `Điểm cho ${nameA || "Đội A"}` };
   if (matchB && !matchA) return { action: "add_B", desc: `Điểm cho ${nameB || "Đội B"}` };
 
-  // 3. 'X đều' (e.g. '8 đều', 'tám đều', '10 đều')
-  const matchDeu = text.match(/(\d+|không|một|mốt|hai|ba|bốn|tư|năm|lăm|sáu|bảy|bẩy|tám|chín|mười)\s*đều/i);
-  if (matchDeu) {
-    const word = matchDeu[1];
-    const numMap = { không: 0, một: 1, mốt: 1, hai: 2, ba: 3, bốn: 4, tư: 4, năm: 5, lăm: 5, sáu: 6, bảy: 7, bẩy: 7, tám: 8, chín: 9, mười: 10 };
-    const n = isNaN(word) ? numMap[word] : parseInt(word, 10);
-    if (!isNaN(n) && n >= 0 && n <= 30) {
-      return { action: "set_score", scoreA: n, scoreB: n, desc: `${n} đều` };
-    }
+  let s = folded.replace(
+    /\b(ty so|ti so|diem la|diem|la|bang|thang|thua|giao|roi|nha|nhe|voi|hon|cham|phay|set|van|hien tai|dang|qua|duoc)\b/g,
+    " "
+  );
+  s = s.replace(/\s+/g, " ").trim();
+
+  const bothInDoubleDigits = curA >= 10 && curB >= 10;
+  if (!bothInDoubleDigits) {
+    s = s.replace(/\bmuoi\s+(khong|ko|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|\d)\b/g, "10 $1");
   }
 
-  // 4. Convert Vietnamese words to numbers
-  let s = text.replace(/[,.-]/g, " ").replace(/\s+/g, " ").trim();
+  const compounds = [
+    [/\b(ba muoi|ba chuc)\b/g, "30"],
+    [/\bhai muoi chin\b/g, "29"],
+    [/\bhai muoi tam\b/g, "28"],
+    [/\bhai muoi bay\b/g, "27"],
+    [/\bhai muoi sau\b/g, "26"],
+    [/\b(hai muoi lam|hai muoi nam)\b/g, "25"],
+    [/\b(hai muoi bon|hai muoi tu)\b/g, "24"],
+    [/\bhai muoi ba\b/g, "23"],
+    [/\bhai muoi hai\b/g, "22"],
+    [/\bhai muoi mot\b/g, "21"],
+    [/\b(hai muoi|hai chuc|twenty)\b/g, "20"],
+    [/\b(muoi chin|nineteen)\b/g, "19"],
+    [/\b(muoi tam|eighteen)\b/g, "18"],
+    [/\b(muoi bay|seventeen)\b/g, "17"],
+    [/\b(muoi sau|sixteen)\b/g, "16"],
+    [/\b(muoi lam|muoi nam|fifteen)\b/g, "15"],
+    [/\b(muoi bon|muoi tu|fourteen)\b/g, "14"],
+    [/\b(muoi ba|thirteen)\b/g, "13"],
+    [/\b(muoi hai|twelve)\b/g, "12"],
+    [/\b(muoi mot|eleven)\b/g, "11"],
+    [/\bmuoi\b/g, "10"],
+  ];
+  compounds.forEach(([re, value]) => {
+    s = s.replace(re, value);
+  });
 
-  s = s.replace(/\b(zezo|dê\s*rô|dzero|dêro)\b/g, "0");
-  s = s.replace(/\b(ba\s*mươi|ba\s*chục)\b/g, "30");
-  s = s.replace(/\b(hai\s*mươi\s*chín|hai\s*chín)\b/g, "29");
-  s = s.replace(/\b(hai\s*mươi\s*tám|hai\s*tám)\b/g, "28");
-  s = s.replace(/\b(hai\s*mươi\s*bảy|hai\s*mươi\s*bẩy|hai\s*bảy|hai\s*bẩy)\b/g, "27");
-  s = s.replace(/\b(hai\s*mươi\s*sáu|hai\s*sáu)\b/g, "26");
-  s = s.replace(/\b(hai\s*mươi\s*lăm|hai\s*mươi\s*năm|hai\s*lăm|hai\s*năm)\b/g, "25");
-  s = s.replace(/\b(hai\s*mươi\s*bốn|hai\s*mươi\s*tư|hai\s*bốn|hai\s*tư)\b/g, "24");
-  s = s.replace(/\b(hai\s*mươi\s*ba|hai\s*ba)\b/g, "23");
-  s = s.replace(/\b(hai\s*mươi\s*hai|hai\s*hai)\b/g, "22");
-  s = s.replace(/\b(hai\s*mươi\s*mốt|hai\s*mốt)\b/g, "21");
-  s = s.replace(/\b(hai\s*mươi|hai\s*chục)\b/g, "20");
+  const wordNum = {
+    zero: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
+    khong: "0", ko: "0", zezo: "0", dero: "0", dzero: "0", mot: "1", nhat: "1", hai: "2", ba: "3", bon: "4", tu: "4",
+    nam: "5", lam: "5", sau: "6", bay: "7", tam: "8", chin: "9",
+    dieu: "deu", deo: "deu", dau: "deu", hoa: "deu", deuce: "deu",
+  };
+  s = s.replace(/\b([a-z]+)\b/g, (word) => (wordNum[word] != null ? wordNum[word] : word));
+  s = s.replace(/(\d)\s*deu/g, "$1 deu");
 
-  // Handle 'mười' followed by digit (in badminton call 'mười tám' = 10 8)
-  s = s.replace(/\bmười\s+(không|một|mốt|hai|ba|bốn|tư|năm|lăm|sáu|bảy|bẩy|tám|chín|\d)\b/g, "10 $1");
+  const deu = s.match(/\b(\d+)\s+deu\b/);
+  if (deu) {
+    const deuce = applySpokenDeuce(parseInt(deu[1], 10), curA, curB);
+    if (deuce) return deuce;
+  }
 
-  s = s.replace(/\b(mười\s*chín)\b/g, "19");
-  s = s.replace(/\b(mười\s*tám)\b/g, "18");
-  s = s.replace(/\b(mười\s*bảy|mười\s*bẩy)\b/g, "17");
-  s = s.replace(/\b(mười\s*sáu)\b/g, "16");
-  s = s.replace(/\b(mười\s*lăm|mười\s*năm)\b/g, "15");
-  s = s.replace(/\b(mười\s*bốn|mười\s*tư)\b/g, "14");
-  s = s.replace(/\b(mười\s*ba)\b/g, "13");
-  s = s.replace(/\b(mười\s*hai)\b/g, "12");
-  s = s.replace(/\b(mười\s*một|mười\s*mốt)\b/g, "11");
-  s = s.replace(/\bmười\b/g, "10");
-
-  s = s.replace(/\b(không|khong)\b/g, "0");
-  s = s.replace(/\b(một|mot|mốt)\b/g, "1");
-  s = s.replace(/\b(hai)\b/g, "2");
-  s = s.replace(/\b(ba)\b/g, "3");
-  s = s.replace(/\b(bốn|bon|tư)\b/g, "4");
-  s = s.replace(/\b(năm|nam|lăm)\b/g, "5");
-  s = s.replace(/\b(sáu|sau)\b/g, "6");
-  s = s.replace(/\b(bảy|bay|bẩy)\b/g, "7");
-  s = s.replace(/\b(tám|tam)\b/g, "8");
-  s = s.replace(/\b(chín|chin)\b/g, "9");
-
-  const nums = (s.match(/\d+/g) || []).map((n) => parseInt(n, 10));
-
+  let nums = (s.match(/\d+/g) || []).map((n) => parseInt(n, 10));
+  if (nums.length === 1 && nums[0] >= 10 && nums[0] <= 99 && nums[0] > 30) {
+    nums = [Math.floor(nums[0] / 10), nums[0] % 10];
+  } else if (nums.length === 1 && nums[0] >= 10 && nums[0] <= 30) {
+    const glued = interpretScorePair(Math.floor(nums[0] / 10), nums[0] % 10, curA, curB);
+    const asWhole = interpretScorePair(nums[0], curB, curA, curB);
+    if (glued && (!asWhole || glued.exact)) nums = [Math.floor(nums[0] / 10), nums[0] % 10];
+  }
+  nums = nums.filter((n) => n >= 0 && n <= 30);
   if (nums.length >= 2) {
-    let [n1, n2] = [nums[0], nums[1]];
-
-    // Smart rollover: e.g. previous was 9 8, spoken is '0 8' -> 10 8
-    if (n1 === 0 && (curA === 9 || curA % 10 === 9)) {
-      n1 = curA + 1;
-    } else if (n2 === 0 && (curB === 9 || curB % 10 === 9)) {
-      n2 = curB + 1;
-    }
-
-    if (n1 >= 0 && n1 <= 30 && n2 >= 0 && n2 <= 30) {
-      if ((n1 === curA + 1 && n2 === curB) || (n1 === curA && n2 === curB + 1)) {
-        return { action: "set_score", scoreA: n1, scoreB: n2, winnerSide: n1 === curA + 1 ? "A" : "B" };
-      }
-      if ((n2 === curA + 1 && n1 === curB) || (n2 === curA && n1 === curB + 1)) {
-        return { action: "set_score", scoreA: n2, scoreB: n1, winnerSide: n2 === curA + 1 ? "A" : "B" };
-      }
-      return { action: "set_score", scoreA: n1, scoreB: n2, winnerSide: n1 > curA ? "A" : n2 > curB ? "B" : null };
+    const reading = interpretScorePair(nums[0], nums[1], curA, curB);
+    if (reading) {
+      return {
+        action: "set_score",
+        scoreA: reading.scoreA,
+        scoreB: reading.scoreB,
+        winnerSide: reading.winnerSide,
+        unchanged: reading.unchanged,
+      };
     }
   }
 
-  // If only 1 number was heard, e.g. '18' when previous was 9 8:
   if (nums.length === 1) {
     const n = nums[0];
-    if (n >= 10 && n <= 19 && curA === 9 && curB === (n % 10)) {
+    const aHit = n === curA + 1;
+    const bHit = n === curB + 1;
+    if (aHit && !bHit) return { action: "set_score", scoreA: n, scoreB: curB, winnerSide: "A" };
+    if (bHit && !aHit) return { action: "set_score", scoreA: curA, scoreB: n, winnerSide: "B" };
+    if (n >= 10 && n <= 19 && curA === 9 && curB === n % 10) {
       return { action: "set_score", scoreA: 10, scoreB: n % 10, winnerSide: "A" };
     }
-    if (n >= 10 && n <= 19 && curB === 9 && curA === (n % 10)) {
+    if (n >= 10 && n <= 19 && curB === 9 && curA === n % 10) {
       return { action: "set_score", scoreA: n % 10, scoreB: 10, winnerSide: "B" };
     }
   }
@@ -2533,7 +2636,7 @@ function handleVoiceTranscript(rawText) {
 
   if (parsed.action === "swap") {
     swapSides();
-    showVoiceBannerNotice(`Đã đổi sân ⇄ qua giọng nói`);
+    showVoiceBannerNotice(`Đã đổi sân qua giọng nói`);
     return;
   }
 
@@ -2552,6 +2655,12 @@ function handleVoiceTranscript(rawText) {
   if (parsed.action === "add_B") {
     addScore("B");
     showVoiceBannerNotice(`🎙️ "${rawText}" → +1 cho ${scoreState.teamB.name} (${scoreState.teamA.score} - ${scoreState.teamB.score})`);
+    return;
+  }
+
+  if (parsed.action === "set_score" && (parsed.unchanged || (parsed.scoreA === scoreState.teamA.score && parsed.scoreB === scoreState.teamB.score))) {
+    showVoiceBannerNotice(`Đã nghe ${parsed.scoreA} - ${parsed.scoreB}. Bảng đang đúng tỷ số này.`);
+    playVoiceChime();
     return;
   }
 
@@ -2593,91 +2702,275 @@ function showVoiceBannerNotice(msg) {
   setTimeout(() => {
     banner.classList.remove("sb-voice-updated");
     if (scoreVoiceState.isListening) {
-      bannerText.textContent = `Đang lắng nghe: nói "6 4", "10 8", "0 8", "Đội A", "Đổi sân"...`;
+      bannerText.textContent = `Đang lắng nghe: nói "6 4", "5 2" khi trên 10, "8 đều", "Đội A"...`;
     }
   }, 2600);
 }
 
-function toggleVoiceListening() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+function speechRecognitionApi() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function isHomeScreenApp() {
+  return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+}
+
+function isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function shouldRecordForSpeech() {
+  return !speechRecognitionApi() || (isIosDevice() && isHomeScreenApp());
+}
+
+function markVoiceListening(on) {
   const btnVoice = document.getElementById("btn-sb-voice");
   const label = document.getElementById("sb-voice-label");
   const banner = document.getElementById("sb-voice-banner");
   const bannerText = document.getElementById("sb-voice-text");
-
-  if (!SpeechRecognition) {
-    alert("Trình duyệt hiện tại chưa hỗ trợ Web Speech API micro. Bạn nên mở bằng Google Chrome hoặc Safari trên điện thoại để dùng tính năng này.");
-    return;
-  }
-
-  scoreVoiceState.isListening = !scoreVoiceState.isListening;
-
-  if (scoreVoiceState.isListening) {
-    if (!scoreVoiceState.recognition) {
-      const r = new SpeechRecognition();
-      r.continuous = true;
-      r.interimResults = false;
-      r.lang = "vi-VN";
-
-      r.onresult = (event) => {
-        const lastResult = event.results[event.results.length - 1];
-        if (lastResult && lastResult[0]) {
-          const transcript = lastResult[0].transcript;
-          handleVoiceTranscript(transcript);
-        }
-      };
-
-      r.onerror = (e) => {
-        if (e.error === "not-allowed") {
-          alert("Quyền truy cập micro đã bị từ chối. Vui lòng cấp quyền Micro trong cài đặt trình duyệt để SmashPay nghe điểm.");
-          stopVoiceListening();
-        }
-      };
-
-      r.onend = () => {
-        if (scoreVoiceState.isListening) {
-          clearTimeout(scoreVoiceState.reconnectTimer);
-          scoreVoiceState.reconnectTimer = setTimeout(() => {
-            try {
-              scoreVoiceState.recognition.start();
-            } catch (err) {}
-          }, 250);
-        }
-      };
-
-      scoreVoiceState.recognition = r;
-    }
-
-    try {
-      scoreVoiceState.recognition.start();
-      playVoiceChime();
-    } catch (e) {}
-
-    if (btnVoice) btnVoice.classList.add("is-listening");
-    if (label) label.textContent = "🎙️ Micro: BẬT";
-    if (banner) banner.classList.remove("hidden");
-    if (bannerText) bannerText.textContent = `Đang lắng nghe: nói "6 4", "10 8", "0 8", "Đội A", "Đổi sân"...`;
-    showToast("Đã bật nhận diện giọng nói qua Micro!");
-  } else {
-    stopVoiceListening();
-    showToast("Đã tắt nhận diện giọng nói qua Micro.");
+  if (btnVoice) btnVoice.classList.toggle("is-listening", on);
+  if (label) label.textContent = on ? "🎙️ Micro: BẬT" : "🎙️ Micro: Tắt";
+  if (banner) banner.classList.toggle("hidden", !on);
+  if (on && bannerText) {
+    bannerText.textContent = `Đang lắng nghe: nói "6 4", "5 2" khi trên 10, "8 đều", "Đội A"...`;
   }
 }
 
-function stopVoiceListening() {
-  scoreVoiceState.isListening = false;
+function startWebSpeech() {
+  const SpeechRecognition = speechRecognitionApi();
+  if (!scoreVoiceState.recognition) {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 5;
+    recognition.lang = "vi-VN";
+    recognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const texts = [];
+        for (let alt = 0; alt < result.length; alt++) texts.push(result[alt].transcript);
+        if (!result.isFinal) {
+          const live = document.getElementById("sb-voice-text");
+          if (live && texts[0]) live.textContent = `Đang nghe: "${texts[0]}"`;
+          continue;
+        }
+        let chosen = texts[0] || "";
+        for (const text of texts) {
+          const trial = parseVoiceScore(
+            text,
+            scoreState.teamA.score,
+            scoreState.teamB.score,
+            scoreState.teamA.name,
+            scoreState.teamB.name
+          );
+          if (trial) {
+            chosen = text;
+            break;
+          }
+        }
+        if (chosen) handleVoiceTranscript(chosen);
+      }
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed") {
+        alert("Quyền micro bị từ chối. Hãy cho phép Micro trong cài đặt, rồi bật lại.");
+        stopVoiceListening();
+        return;
+      }
+      if (event.error === "service-not-allowed" && scoreVoiceState.isListening) {
+        stopVoiceEngine();
+        navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => startRecorderFallback(stream)).catch(() => {
+          stopVoiceListening();
+        });
+      }
+    };
+    recognition.onend = () => {
+      if (!scoreVoiceState.isListening || scoreVoiceState.recorderMode) return;
+      clearTimeout(scoreVoiceState.reconnectTimer);
+      scoreVoiceState.reconnectTimer = setTimeout(() => {
+        try {
+          scoreVoiceState.recognition.start();
+        } catch (err) {}
+      }, 250);
+    };
+    scoreVoiceState.recognition = recognition;
+  }
+  scoreVoiceState.recorderMode = false;
+  scoreVoiceState.recognition.start();
+}
+
+function downsampleBuffer(buffer, inputRate, outputRate) {
+  if (outputRate >= inputRate) return buffer;
+  const ratio = inputRate / outputRate;
+  const length = Math.round(buffer.length / ratio);
+  const result = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    const index = i * ratio;
+    const left = Math.floor(index);
+    const right = Math.min(left + 1, buffer.length - 1);
+    const mix = index - left;
+    result[i] = buffer[left] * (1 - mix) + buffer[right] * mix;
+  }
+  return result;
+}
+
+function floatToPcm16(samples) {
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    const clamped = Math.max(-1, Math.min(1, samples[i]));
+    pcm[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+  }
+  return pcm;
+}
+
+function startRecorderFallback(stream) {
+  const ctx = getScoreAudioCtx();
+  if (!ctx) {
+    alert("Máy không mở được micro trong ứng dụng này.");
+    stopVoiceListening();
+    return;
+  }
+  scoreVoiceState.recorderMode = true;
+  scoreVoiceState.micStream = stream;
+  const source = ctx.createMediaStreamSource(stream);
+  const processor = ctx.createScriptProcessor(4096, 1, 1);
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  const chunks = [];
+  let speaking = false;
+  let silenceMs = 0;
+  let speechMs = 0;
+  scoreVoiceState.sendingVoice = false;
+
+  processor.onaudioprocess = (event) => {
+    if (!scoreVoiceState.isListening) return;
+    const input = event.inputBuffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+    const rms = Math.sqrt(sum / input.length);
+    const frameMs = (input.length / ctx.sampleRate) * 1000;
+    if (rms > 0.018) {
+      speaking = true;
+      silenceMs = 0;
+      speechMs += frameMs;
+      chunks.push(new Float32Array(input));
+    } else if (speaking) {
+      silenceMs += frameMs;
+      chunks.push(new Float32Array(input));
+      if (silenceMs > 650 || speechMs > 4000) {
+        const captured = chunks.splice(0, chunks.length);
+        const saidMs = speechMs;
+        speaking = false;
+        silenceMs = 0;
+        speechMs = 0;
+        if (saidMs > 280) sendRecordedSpeech(captured, ctx.sampleRate);
+      }
+    }
+  };
+
+  source.connect(processor);
+  processor.connect(mute);
+  mute.connect(ctx.destination);
+  scoreVoiceState.recorderNodes = { source, processor, mute };
+  showToast("Micro của ứng dụng ngoài màn hình chính đang ghi âm từng câu.");
+}
+
+async function sendRecordedSpeech(chunks, sampleRate) {
+  if (scoreVoiceState.sendingVoice) return;
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const merged = new Float32Array(total);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  });
+  const samples = downsampleBuffer(merged, sampleRate, 16000);
+  const pcm = floatToPcm16(samples);
+  scoreVoiceState.sendingVoice = true;
+  try {
+    const res = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: pcm.buffer,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (document.getElementById("sb-voice-text")) {
+        document.getElementById("sb-voice-text").textContent = data.detail || "Chưa nghe rõ. Nói lại tỷ số.";
+      }
+      return;
+    }
+    if (data.text) handleVoiceTranscript(data.text);
+  } catch (err) {
+    showToast("Không gửi được câu nói. Kiểm tra mạng rồi nói lại.");
+  } finally {
+    scoreVoiceState.sendingVoice = false;
+  }
+}
+
+async function toggleVoiceListening() {
+  if (scoreVoiceState.isListening) {
+    stopVoiceListening();
+    showToast("Đã tắt nhận diện giọng nói qua Micro.");
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Máy này chưa cho trang dùng micro. Hãy mở bằng Chrome hoặc Safari và cho phép micro.");
+    return;
+  }
+  primeSpeechOutput();
+  getScoreAudioCtx();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (err) {
+    alert("Cần cho phép micro thì SmashPay mới nghe được điểm. Hãy bật quyền Micro rồi thử lại.");
+    return;
+  }
+
+  scoreVoiceState.isListening = true;
+  markVoiceListening(true);
+  playVoiceChime();
+  try {
+    if (shouldRecordForSpeech()) {
+      startRecorderFallback(stream);
+    } else {
+      startWebSpeech();
+      stream.getTracks().forEach((track) => track.stop());
+      showToast("Đã bật nhận diện giọng nói qua Micro!");
+    }
+  } catch (err) {
+    startRecorderFallback(stream);
+  }
+}
+
+function stopVoiceEngine() {
   clearTimeout(scoreVoiceState.reconnectTimer);
   if (scoreVoiceState.recognition) {
     try {
       scoreVoiceState.recognition.stop();
     } catch (e) {}
   }
-  const btnVoice = document.getElementById("btn-sb-voice");
-  const label = document.getElementById("sb-voice-label");
-  const banner = document.getElementById("sb-voice-banner");
-  if (btnVoice) btnVoice.classList.remove("is-listening");
-  if (label) label.textContent = "🎙️ Micro: Tắt";
-  if (banner) banner.classList.add("hidden");
+  if (scoreVoiceState.recorderNodes) {
+    try {
+      scoreVoiceState.recorderNodes.processor.onaudioprocess = null;
+      scoreVoiceState.recorderNodes.source.disconnect();
+      scoreVoiceState.recorderNodes.processor.disconnect();
+      scoreVoiceState.recorderNodes.mute.disconnect();
+    } catch (e) {}
+    scoreVoiceState.recorderNodes = null;
+  }
+  if (scoreVoiceState.micStream) {
+    scoreVoiceState.micStream.getTracks().forEach((track) => track.stop());
+    scoreVoiceState.micStream = null;
+  }
+  scoreVoiceState.recorderMode = false;
+}
+
+function stopVoiceListening() {
+  scoreVoiceState.isListening = false;
+  stopVoiceEngine();
+  markVoiceListening(false);
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

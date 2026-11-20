@@ -1,9 +1,11 @@
+import json
 import os
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -730,6 +732,50 @@ def toggle_settlement(settlement_id: int, payload: SettlementToggle):
 
 
 # ---------- Health & Static Frontend ----------
+
+
+def _recognize_vi_pcm(pcm: bytes) -> str:
+    if len(pcm) < 3200:
+        raise HTTPException(status_code=400, detail="Đoạn nói quá ngắn.")
+    url = (
+        "https://www.google.com/speech-api/v2/recognize"
+        "?client=chromium&lang=vi-VN&key=AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw"
+    )
+    req = urllib.request.Request(
+        url,
+        data=pcm,
+        headers={"Content-Type": "audio/l16; rate=16000"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as res:
+            body = res.read().decode("utf-8", "ignore")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Không chuyển được giọng nói thành chữ. Hãy nói lại.") from exc
+
+    text = ""
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        for item in data.get("result") or []:
+            alternatives = item.get("alternative") or []
+            if alternatives and alternatives[0].get("transcript"):
+                text = alternatives[0]["transcript"]
+    if not text:
+        raise HTTPException(status_code=422, detail="Chưa nghe rõ điểm. Nói lại tỷ số.")
+    return text
+
+
+@app.post("/api/voice/transcribe")
+async def transcribe_voice(request: Request):
+    """Used when the installed home-screen app cannot run the browser speech engine."""
+    pcm = await request.body()
+    return {"text": _recognize_vi_pcm(pcm)}
 
 
 @app.get("/api/health")
