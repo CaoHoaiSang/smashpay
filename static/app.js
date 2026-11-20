@@ -640,49 +640,45 @@ function closeShareSheet() {
   if (sheet) sheet.classList.add("hidden");
 }
 
-async function openZaloShare(url) {
+function openZaloShare(url) {
   closeShareSheet();
   const msg = inviteMessage();
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(msg);
+      navigator.clipboard.writeText(msg).catch(() => {});
     }
   } catch (_) {}
-  showToast("Đã sao chép nội dung mời! Dán vào Zalo để gửi.");
-  setTimeout(() => {
-    const win = window.open("https://chat.zalo.me/", "_blank", "noopener,noreferrer");
-    if (!win) {
-      const a = document.createElement("a");
-      a.href = "https://chat.zalo.me/";
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-  }, 250);
+
+  if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    navigator.share({
+      title: "SmashPay - Chia tiền cầu lông",
+      text: msg,
+      url: url,
+    }).catch((err) => {
+      if (err.name !== "AbortError") {
+        showToast("Đã copy nội dung mời. Dán vào Zalo để gửi!");
+      }
+    });
+    return;
+  }
+
+  showToast("Đã sao chép nội dung mời. Đang mở Zalo...");
+  window.open("https://chat.zalo.me/", "_blank", "noopener");
 }
 
-async function openMessengerShare(url) {
+function openMessengerShare(url) {
   closeShareSheet();
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(url);
+      navigator.clipboard.writeText(url).catch(() => {});
     }
   } catch (_) {}
-  showToast("Đã sao chép link mời! Dán vào Messenger để gửi.");
-  setTimeout(() => {
-    const win = window.open("https://www.messenger.com/", "_blank", "noopener,noreferrer");
-    if (!win) {
-      const a = document.createElement("a");
-      a.href = "https://www.messenger.com/";
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-  }, 250);
+  showToast("Đã sao chép link mời. Đang mở Messenger...");
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = `fb-messenger://share/?link=${encodeURIComponent(url)}`;
+  } else {
+    window.open(`https://www.messenger.com/t/?link=${encodeURIComponent(url)}`, "_blank", "noopener");
+  }
 }
 
 async function downloadBackup() {
@@ -815,7 +811,7 @@ function bindGroupEvents() {
   if (copyInvite) {
     copyInvite.addEventListener("click", () => {
       if (!state.group || !state.group.invite_code) return;
-      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`);
+      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`, copyInvite);
     });
   }
   if (copyOwner) {
@@ -859,7 +855,7 @@ function bindGroupEvents() {
   }
   if (shareCopy) {
     shareCopy.addEventListener("click", () => {
-      copyGroupText(inviteLink(), "Đã sao chép link mời.", shareCopy);
+      copyGroupText(inviteLink(), "Đã sao chép link mời.");
       closeShareSheet();
     });
   }
