@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=3.5" />
+  <link rel="stylesheet" href="/static/styles.css?v=3.8" />
 </head>
 <body>
   <header class="topbar">
@@ -33,17 +33,21 @@
         </div>
       </div>
       <nav class="nav-tabs" role="tablist">
-        <button class="nav-tab active" data-tab="session" role="tab">
-          <span class="nav-tab-dot"></span>Buổi hiện tại
+        <button class="nav-tab active" data-tab="session" role="tab" aria-label="Buổi chơi">
+          <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="nav-tab-text">Buổi chơi</span>
         </button>
-        <button class="nav-tab" data-tab="history" role="tab">
-          Lịch sử
+        <button class="nav-tab" data-tab="history" role="tab" aria-label="Lịch sử">
+          <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span class="nav-tab-text">Lịch sử</span>
         </button>
-        <button class="nav-tab" data-tab="members" role="tab">
-          Thành viên
+        <button class="nav-tab" data-tab="members" role="tab" aria-label="Thành viên">
+          <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="nav-tab-text">Thành viên</span>
         </button>
-        <button class="nav-tab" data-tab="scoreboard" role="tab">
-          🏸 Bảng điểm
+        <button class="nav-tab" data-tab="scoreboard" role="tab" aria-label="Bảng điểm">
+          <svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H7"/><path d="M14 14.66V17c0 .55.45 1 1 1h2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          <span class="nav-tab-text">Bảng điểm</span>
         </button>
       </nav>
     </div>
@@ -347,15 +351,6 @@
           <span class="sb-voice-badge">🎙️ ĐANG NGHE</span>
           <span class="sb-voice-text" id="sb-voice-text">Nói "6 4", "5 2" khi đang 14-12, "8 đều", "Đội A"...</span>
         </div>
-        <details class="sb-voice-help">
-          <summary>Hướng dẫn dùng micro</summary>
-          <ul>
-            <li>Mỗi câu chỉ cộng một điểm. Đang 2–2 thì "3 2" thành 3–2. Đang 0–1 thì "1 đều" thành 1–1. Câu nhảy nhiều điểm sẽ không đổi bảng.</li>
-            <li>Khi cả hai đội đã từ 10 điểm trở lên, chỉ cần nói hàng đơn vị. Đang 14–12 thì "5 2" là 15–12. Đang 19–18 thì "0 8" là 20–18. "8 đều" hoặc "8 hòa" khi hai đội bằng điểm.</li>
-            <li>Cộng một điểm: "Đội A", "A ăn", "bê". Lệnh khác: "hoàn tác", "đổi sân", "trận mới".</li>
-            <li>Mở từ icon trên màn hình chính vẫn nghe được. Máy ghi câu nói rồi đổi thành chữ, nên cần có mạng. Nếu trình duyệt hỏi quyền micro, hãy chọn Cho phép.</li>
-          </ul>
-        </details>
         <div class="sb-win-overlay hidden" id="sb-win-overlay">
           <div class="sb-win-card">
             <p class="sb-win-kicker">Hết trận</p>
@@ -430,19 +425,65 @@
 
         <!-- Scoreboard Bottom Control Bar -->
         <div class="sb-controls-bar">
-          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-undo">
-            <span>Hoàn tác (-1)</span>
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-undo" title="Lùi lại 1 điểm vừa ghi">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            <span>Hoàn tác</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-swap">
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-swap" title="Đổi bên sân thi đấu">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
             <span>Đổi sân</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-new-set">
+          <button type="button" class="btn btn-secondary btn-sm sb-ctrl-btn" id="btn-sb-new-set" title="Bắt đầu ván đấu tiếp theo">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
             <span>Ván mới</span>
           </button>
-          <button type="button" class="btn btn-danger btn-sm sb-ctrl-btn" id="btn-sb-reset">
+          <button type="button" class="btn btn-danger btn-sm sb-ctrl-btn" id="btn-sb-reset" title="Tạo trận đấu mới từ đầu">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.99 6.57 2.57L21 8"/><path d="M21 3v5h-5"/></svg>
             <span>Trận mới</span>
           </button>
         </div>
+      </div>
+
+      <!-- Hướng dẫn dùng Micro nằm bên ngoài thẻ bảng điểm thi đấu -->
+      <div class="card sb-voice-guide-card">
+        <details class="sb-voice-help">
+          <summary>
+            <span class="sb-guide-icon">💡</span>
+            <span>Hướng dẫn hô điểm qua Micro (Không cần chạm màn hình)</span>
+          </summary>
+          <p class="sb-voice-note">Mỗi câu nói ghi nhận điểm tức thì. Hệ thống tự nhận diện tỷ số, tự động nhảy số thông minh và tính luật giao cầu chẵn/lẻ chuẩn BWF.</p>
+          <dl class="sb-voice-words">
+            <div>
+              <dt>Hô tỷ số hai bên</dt>
+              <dd>"3 2", "sáu bốn", "1 đều", "nhất đều", "8 hòa", "tám đều"</dd>
+            </div>
+            <div>
+              <dt>Khi điểm trên 10 (chỉ cần hô hàng đơn vị)</dt>
+              <dd>Đang 14–12 hô "5 2" là 15–12. Đang 19–18 hô "0 8" là 20–18.</dd>
+            </div>
+            <div>
+              <dt>Cộng 1 điểm cho Đội A</dt>
+              <dd>"Đội A", "bên A", "A ăn", "A lên", "ê", "ây", hoặc tên người chơi Đội A</dd>
+            </div>
+            <div>
+              <dt>Cộng 1 điểm cho Đội B</dt>
+              <dd>"Đội B", "bên B", "B ăn", "B lên", "bê", "bi", hoặc tên người chơi Đội B</dd>
+            </div>
+            <div>
+              <dt>Lùi / Xóa điểm vừa ghi</dt>
+              <dd>"hoàn tác", "nhầm", "lui", "xóa điểm", "trừ điểm", "quay lại", "sai rồi"</dd>
+            </div>
+            <div>
+              <dt>Đổi bên sân thi đấu</dt>
+              <dd>"đổi sân", "đổi bên", "sang bên", "xoay", "quay sân"</dd>
+            </div>
+            <div>
+              <dt>Làm mới trận đấu</dt>
+              <dd>"làm mới", "trận mới", "về không", "chơi lại", "kết thúc", "xong rồi"</dd>
+            </div>
+          </dl>
+          <p class="sb-voice-note">💡 <em>Mẹo</em>: Nhấn vào nút <strong>🎙️ Micro</strong> trên góc phải bảng điểm để BẬT nghe tự động suốt trận đấu.</p>
+        </details>
       </div>
     </section>
   </main>
@@ -794,6 +835,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=3.5"></script>
+  <script src="/static/app.js?v=3.8"></script>
 </body>
 </html>

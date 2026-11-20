@@ -2140,8 +2140,11 @@ function addScore(side) {
     scoreState.serving = "B";
   }
 
+  playVoiceChime();
   if (navigator.vibrate) {
-    navigator.vibrate(30);
+    try {
+      navigator.vibrate([80, 40, 100]);
+    } catch (e) {}
   }
 
   // Check Set Win
@@ -2261,6 +2264,7 @@ function toggleScoreboardFullscreen() {
 
   scoreState.isFullscreen = !scoreState.isFullscreen;
   arena.classList.toggle("scoreboard-fullscreen", scoreState.isFullscreen);
+  document.body.classList.toggle("in-fullscreen", scoreState.isFullscreen);
 
   if (label) {
     label.textContent = scoreState.isFullscreen ? "Thu nhỏ ✕" : "Toàn màn hình";
@@ -2277,6 +2281,17 @@ function toggleScoreboardFullscreen() {
     }
   }
 }
+
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && scoreState.isFullscreen) {
+    scoreState.isFullscreen = false;
+    const arena = document.getElementById("scoreboard-arena");
+    if (arena) arena.classList.remove("scoreboard-fullscreen");
+    document.body.classList.remove("in-fullscreen");
+    const label = document.getElementById("sb-fullscreen-label");
+    if (label) label.textContent = "Toàn màn hình";
+  }
+});
 
 function openScoreboardSettings() {
   const inputA = document.getElementById("input-sb-team-a");
@@ -2335,26 +2350,69 @@ function getScoreAudioCtx() {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return null;
   if (!scoreVoiceState.audioCtx) scoreVoiceState.audioCtx = new AudioCtx();
-  if (scoreVoiceState.audioCtx.state === "suspended") scoreVoiceState.audioCtx.resume();
+  if (scoreVoiceState.audioCtx.state === "suspended") {
+    scoreVoiceState.audioCtx.resume().catch(() => {});
+  }
   return scoreVoiceState.audioCtx;
 }
+
+function unlockAudio() {
+  try {
+    const ctx = getScoreAudioCtx();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+    primeSpeechOutput();
+  } catch (e) {}
+}
+// Unlock Web Audio immediately on first user touch / click
+["touchstart", "touchend", "click", "pointerdown"].forEach((evt) => {
+  window.addEventListener(evt, unlockAudio, { passive: true, once: false });
+});
 
 function playVoiceChime() {
   try {
     const ctx = getScoreAudioCtx();
     if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.13);
-  } catch (e) {}
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+    const now = ctx.currentTime;
+
+    // High-penetration referee dual whistle beep (1950Hz -> 2800Hz)
+    // Beep 1
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sawtooth";
+    osc1.frequency.setValueAtTime(1950, now);
+    osc1.frequency.exponentialRampToValueAtTime(2200, now + 0.05);
+
+    gain1.gain.setValueAtTime(0.01, now);
+    gain1.gain.exponentialRampToValueAtTime(0.85, now + 0.012);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.07);
+
+    // Beep 2 (higher, cutting through court racket & chatter noise)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sawtooth";
+    osc2.frequency.setValueAtTime(2450, now + 0.075);
+    osc2.frequency.exponentialRampToValueAtTime(2800, now + 0.15);
+
+    gain2.gain.setValueAtTime(0.001, now + 0.075);
+    gain2.gain.exponentialRampToValueAtTime(0.85, now + 0.088);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.075);
+    osc2.stop(now + 0.175);
+  } catch (e) {
+    console.warn("Audio chime error:", e);
+  }
 }
 
 function primeSpeechOutput() {
@@ -2369,30 +2427,82 @@ function playMatchWinCelebration(winnerName, setsA, setsB) {
   try {
     const ctx = getScoreAudioCtx();
     if (ctx) {
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, index) => {
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+
+      // 6-note triumphal trumpet fanfare (C5, E5, G5, C6, E6, G6)
+      const notes = [
+        { freq: 523.25, time: 0.00, dur: 0.14 }, // C5
+        { freq: 659.25, time: 0.14, dur: 0.14 }, // E5
+        { freq: 783.99, time: 0.28, dur: 0.14 }, // G5
+        { freq: 1046.50, time: 0.42, dur: 0.20 }, // C6
+        { freq: 1318.51, time: 0.64, dur: 0.20 }, // E6
+        { freq: 1567.98, time: 0.86, dur: 0.65 }, // G6 (climactic high note)
+      ];
+
+      notes.forEach((n) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        const start = ctx.currentTime + index * 0.16;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.42);
-        osc.connect(gain);
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(n.freq, now + n.time);
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(3600, now + n.time);
+
+        gain.gain.setValueAtTime(0.001, now + n.time);
+        gain.gain.exponentialRampToValueAtTime(0.85, now + n.time + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + n.time + n.dur);
+
+        osc.connect(filter);
+        filter.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(start);
-        osc.stop(start + 0.44);
+
+        osc.start(now + n.time);
+        osc.stop(now + n.time + n.dur + 0.02);
+      });
+
+      // Supporting grand victory chord on finale
+      [523.25, 659.25, 1046.50].forEach((freq) => {
+        const chordOsc = ctx.createOscillator();
+        const chordGain = ctx.createGain();
+        chordOsc.type = "triangle";
+        chordOsc.frequency.setValueAtTime(freq, now + 0.86);
+
+        chordGain.gain.setValueAtTime(0.001, now + 0.86);
+        chordGain.gain.exponentialRampToValueAtTime(0.45, now + 0.90);
+        chordGain.gain.exponentialRampToValueAtTime(0.001, now + 1.55);
+
+        chordOsc.connect(chordGain);
+        chordGain.connect(ctx.destination);
+        chordOsc.start(now + 0.86);
+        chordOsc.stop(now + 1.6);
       });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Celebration audio error:", e);
+  }
+
+  // Strong vibration pattern for victory celebration
+  if (navigator.vibrate) {
+    try {
+      navigator.vibrate([250, 100, 250, 100, 450, 150, 800]);
+    } catch (e) {}
+  }
+
+  // Clear, loud speech announcement
   if (window.speechSynthesis) {
-    const utter = new SpeechSynthesisUtterance(
-      `Chúc mừng ${winnerName}. ${winnerName} thắng cuộc. Tỷ số ván ${setsA} ${setsB}.`
-    );
-    utter.lang = "vi-VN";
-    utter.rate = 1;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+    try {
+      const utter = new SpeechSynthesisUtterance(
+        `Chúc mừng ${winnerName}! ${winnerName} đã chiến thắng chung cuộc! Tỷ số ván ${setsA} - ${setsB}!`
+      );
+      utter.lang = "vi-VN";
+      utter.rate = 0.98;
+      utter.volume = 1.0;
+      utter.pitch = 1.05;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch (e) {}
   }
 }
 
@@ -2482,13 +2592,19 @@ function parseVoiceScore(rawText, curA, curB, nameA, nameB) {
   const folded = foldVi(rawText).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   if (!folded) return null;
 
-  if (/\b(hoan tac|quay lai|lui lai|tru diem|bo diem|undo|sai roi|nham roi)\b/.test(folded)) {
+  if (/\b(hoan tac|quan tac|hoan lai|quay lai|lui lai|lui diem|lui|tru diem|tru mot|bo diem|xoa diem|xoa di|undo|sai roi|sai diem|nham roi|nham)\b/.test(folded)) {
     return { action: "undo", desc: "Hoàn tác 1 điểm" };
   }
-  if (/\b(doi san|doi ben|doi cho|swap)\b/.test(folded)) {
+  if (/\b(doi san|sang san|doi ben|sang ben|doi cho|xoay|quay san|swap)\b/.test(folded)) {
     return { action: "swap", desc: "Đổi sân thi đấu" };
   }
-  if (/\b(lam moi|tran moi|ve khong|reset|dau lai)\b/.test(folded)) {
+  if (
+    /\b(ket thuc|het tran|het roi|xong roi|xong tran|choi lai|lam lai|bat dau lai|dau lai|choi moi|moi lai|lam moi|reset)\b/.test(folded) ||
+    /\btran\s*(dau\s*)?moi\b/.test(folded) ||
+    /\b(trang|chan|tra)\s*moi\b/.test(folded) ||
+    /\bve\s*(khong|ko|0)\b/.test(folded) ||
+    /\bxoa\s*het\b/.test(folded)
+  ) {
     return { action: "reset", desc: "Làm mới trận đấu" };
   }
 
@@ -2702,7 +2818,7 @@ function showVoiceBannerNotice(msg) {
   setTimeout(() => {
     banner.classList.remove("sb-voice-updated");
     if (scoreVoiceState.isListening) {
-      bannerText.textContent = `Đang lắng nghe: nói "6 4", "5 2" khi trên 10, "8 đều", "Đội A"...`;
+      bannerText.textContent = `Đang lắng nghe: "3 2", "1 đều", "nhầm", "sang bên", "kết thúc"...`;
     }
   }, 2600);
 }
@@ -2732,7 +2848,7 @@ function markVoiceListening(on) {
   if (label) label.textContent = on ? "🎙️ Micro: BẬT" : "🎙️ Micro: Tắt";
   if (banner) banner.classList.toggle("hidden", !on);
   if (on && bannerText) {
-    bannerText.textContent = `Đang lắng nghe: nói "6 4", "5 2" khi trên 10, "8 đều", "Đội A"...`;
+    bannerText.textContent = `Đang lắng nghe: "3 2", "1 đều", "nhầm", "sang bên", "kết thúc"...`;
   }
 }
 
