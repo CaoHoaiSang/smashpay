@@ -378,13 +378,29 @@ async function acceptGroupLogin(data) {
   await enterGroup();
 }
 
-async function copyGroupText(text, okMsg) {
+const COPY_ICON_SVG = `<svg class="icon-copy-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+const CHECK_ICON_SVG = `<svg class="icon-check-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+function animateCopyButtonSuccess(btn) {
+  if (!btn) return;
+  btn.classList.add("is-copied");
+  btn.innerHTML = CHECK_ICON_SVG;
+  clearTimeout(btn._copyTimer);
+  btn._copyTimer = setTimeout(() => {
+    btn.classList.remove("is-copied");
+    btn.innerHTML = COPY_ICON_SVG;
+  }, 1800);
+}
+
+async function copyGroupText(text, okMsg, btn) {
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
     showToast(okMsg);
+    if (btn) animateCopyButtonSuccess(btn);
   } catch (_) {
     showToast(text);
+    if (btn) animateCopyButtonSuccess(btn);
   }
 }
 
@@ -625,16 +641,27 @@ function closeShareSheet() {
 }
 
 function openZaloShare(url) {
-  const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ url }))));
-  window.open(`https://button-share.zalo.me/share_external?d=${encodeURIComponent(payload)}`, "_blank", "noopener");
+  closeShareSheet();
+  const msg = inviteMessage();
+  try { navigator.clipboard.writeText(`${msg}`); } catch (_) {}
+  showToast("Đã sao chép nội dung mời. Đang mở Zalo...");
+  const target = `https://zalo.me/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(msg)}`;
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = target;
+  } else {
+    window.open(target, "_blank", "noopener");
+  }
 }
 
 function openMessengerShare(url) {
+  closeShareSheet();
+  try { navigator.clipboard.writeText(url); } catch (_) {}
+  showToast("Đã sao chép link mời. Đang mở Messenger...");
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
     window.location.href = `fb-messenger://share/?link=${encodeURIComponent(url)}`;
-    return;
+  } else {
+    window.open("https://www.messenger.com", "_blank", "noopener");
   }
-  copyGroupText(url, "Đã sao chép link. Hãy dán vào Messenger.");
 }
 
 async function downloadBackup() {
@@ -767,13 +794,13 @@ function bindGroupEvents() {
   if (copyInvite) {
     copyInvite.addEventListener("click", () => {
       if (!state.group || !state.group.invite_code) return;
-      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`);
+      copyGroupText(state.group.invite_code, `Đã sao chép mã mời: ${state.group.invite_code}`, copyInvite);
     });
   }
   if (copyOwner) {
     copyOwner.addEventListener("click", () => {
       if (!state.group || !state.group.owner_code) return;
-      copyGroupText(state.group.owner_code, `Đã sao chép mã chủ nhóm: ${state.group.owner_code}`);
+      copyGroupText(state.group.owner_code, `Đã sao chép mã chủ nhóm: ${state.group.owner_code}`, copyOwner);
     });
   }
   if (leaveBtn) {
@@ -811,12 +838,14 @@ function bindGroupEvents() {
   }
   if (shareCopy) {
     shareCopy.addEventListener("click", () => {
-      copyGroupText(inviteLink(), "Đã sao chép link mời.");
+      copyGroupText(inviteLink(), "Đã sao chép link mời.", shareCopy);
+      closeShareSheet();
     });
   }
   if (shareMore) {
     shareMore.addEventListener("click", async () => {
       const url = inviteLink();
+      closeShareSheet();
       if (!url || typeof navigator.share !== "function") {
         copyGroupText(url, "Đã sao chép link mời.");
         return;
@@ -1429,7 +1458,7 @@ function renderHistory() {
 function memberCardHtml(m, hidden) {
   const bankStr = m.bank_id && m.account_no
     ? `${m.bank_id} · ${m.account_no}${m.account_name ? ` (${m.account_name})` : ""}`
-    : "Chưa cập nhật tài khoản ngân hàng";
+    : "Chưa có STK";
   const initials = getInitials(m.name);
   const actions = hidden
     ? `<button class="btn btn-primary btn-sm owner-only" onclick="restoreMember(${m.id})">Hiện lại</button>`
@@ -1441,11 +1470,13 @@ function memberCardHtml(m, hidden) {
         <div class="avatar-circle avatar-member" style="${getAvatarStyle(m.name, m.id)}">${initials}</div>
         <div class="member-card-text">
           <div class="member-title-row">
-            <strong>${escapeHtml(m.name)}</strong>
-            ${hidden ? `<span class="badge badge-neutral">Đã ẩn</span>` : m.is_regular ? `<span class="badge badge-settled">Cố định</span>` : `<span class="badge badge-neutral">Vãng lai</span>`}
-            ${m.default_payer_name ? `<span class="badge badge-linked">${ICONS.linked} Trả kèm cùng ${escapeHtml(m.default_payer_name)}</span>` : ""}
+            <div class="member-name-wrap">
+              <strong class="member-name">${escapeHtml(m.name)}</strong>
+              ${hidden ? `<span class="badge badge-neutral">Đã ẩn</span>` : m.is_regular ? `<span class="badge badge-settled">Cố định</span>` : `<span class="badge badge-neutral">Vãng lai</span>`}
+            </div>
+            ${m.default_payer_name ? `<span class="badge badge-linked" title="Trả kèm cùng ${escapeHtml(m.default_payer_name)}">${ICONS.linked} Kèm ${escapeHtml(m.default_payer_name)}</span>` : ""}
           </div>
-          <div class="member-bank-info">${ICONS.bank} <span>${escapeHtml(bankStr)}</span></div>
+          <div class="member-bank-info" title="${escapeHtml(bankStr)}">${ICONS.bank} <span>${escapeHtml(bankStr)}</span></div>
         </div>
       </div>
       <div class="action-row">${actions}</div>
@@ -1460,8 +1491,8 @@ function renderMembers() {
     container.innerHTML = `
       <div class="empty-hint-card">
         <div class="empty-hint-icon">${ICONS.shuttle}</div>
-        <p>Chưa có thành viên cố định nào.</p>
-        <small class="muted">Thêm danh sách thành viên cố định của nhóm để tạo buổi đánh cực nhanh.</small>
+        <p>Chưa có thành viên nào.</p>
+        <small class="muted">Thêm danh sách thành viên của nhóm để tạo buổi đánh cực nhanh.</small>
       </div>`;
     return;
   }

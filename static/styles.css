@@ -126,65 +126,81 @@ body {
 }
 
 .brand-icon-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.32);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.42), 0 0 0 2px rgba(16, 185, 129, 0.22);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
 }
 
 .brand-icon-wrap:hover {
-  transform: scale(1.05);
+  transform: scale(1.08) rotate(3deg);
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.55), 0 0 0 3px rgba(16, 185, 129, 0.35);
 }
 
 .brand-logo-img {
   width: 100%;
   height: 100%;
-  border-radius: 12px;
+  border-radius: 14px;
   object-fit: cover;
   display: block;
 }
 
 .brand-svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
 }
 
 .brand-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .brand h1 {
   margin: 0;
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #047857 0%, #10b981 45%, #0284c7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(16, 185, 129, 0.18));
+  display: inline-block;
+  line-height: 1.15;
 }
 
 .brand-badge-pro {
-  font-size: 9.5px;
-  font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--primary-soft);
-  color: var(--primary-dark);
-  border: 1px solid var(--shuttle-border);
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.08em;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+  animation: proBadgePulse 3s infinite ease-in-out;
+}
+
+@keyframes proBadgePulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.05); filter: brightness(1.15); box-shadow: 0 0 12px rgba(16, 185, 129, 0.55); }
 }
 
 .brand-sub {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-muted);
+  letter-spacing: -0.01em;
 }
 
 /* Nav Tabs Segmented Control */
@@ -1593,8 +1609,27 @@ body {
 .member-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.member-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.member-title-row strong {
+  font-size: 14.5px;
+  color: var(--text);
+}
+
+.member-title-row .badge-linked {
+  font-size: 11px;
+  padding: 1px 6px;
+  white-space: nowrap;
 }
 
 .member-bank-info {
@@ -2417,24 +2452,28 @@ textarea:focus {
 
   .brand {
     justify-content: flex-start;
+    gap: 10px;
   }
 
   .brand h1 {
-    font-size: 16px;
+    font-size: 20px !important;
   }
 
   .brand-sub {
-    display: none !important;
+    display: block !important;
+    font-size: 11px !important;
+    margin-top: 1px !important;
   }
 
   .brand-icon-wrap {
-    width: 32px;
-    height: 32px;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
   }
 
   .brand-svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
   }
 
   /* Fullscreen Scoreboard hides topbar and bottom tabs completely */
@@ -3862,44 +3901,64 @@ body.group-locked .nav-tabs-mobile {
 }
 
 /* =========================================
-   GROUP BAR (THANH QUẢN LÝ NHÓM HIỆN ĐẠI)
+   GROUP CARD (THẺ QUẢN LÝ NHÓM TRONG TAB THÀNH VIÊN)
    ========================================= */
-.group-bar {
-  max-width: 980px;
-  margin: 4px auto 10px;
-  padding: 8px 14px;
-  background: var(--surface);
+.group-card-box {
+  margin-top: 18px;
+  background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: 18px 20px;
+}
+
+.group-card-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .group-identity {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .group-name-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
 
-.group-icon {
-  color: var(--primary);
+.group-avatar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  border: 1px solid #a7f3d0;
+}
+
+.group-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .group-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 800;
   color: var(--text);
   letter-spacing: -0.01em;
 }
@@ -3920,69 +3979,96 @@ body:not(.is-owner) .group-role-badge {
   border-color: #cbd5e1;
 }
 
-.group-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
+.group-sub-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
 }
 
-.group-chip {
-  display: inline-flex;
+.group-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.group-action-card {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
   background: #f8fafc;
   border: 1px solid var(--border);
-  padding: 3px 6px 3px 8px;
-  border-radius: 8px;
-  font-size: 12px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
 }
 
-.group-chip-label {
-  font-size: 11.5px;
-  color: var(--text-muted);
+.group-action-card:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.group-action-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-action-label {
+  font-size: 11px;
   font-weight: 600;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.group-action-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.group-code-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .group-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
   background: var(--primary-soft);
   color: var(--primary-dark);
-  padding: 2px 6px;
-  border-radius: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
 }
 
-.group-chip-owner {
-  background: #fdf4ff;
+.group-code-owner {
+  background: #fae8ff;
+  color: #86198f;
   border-color: #f0abfc;
 }
 
-.group-chip-owner .group-chip-label {
-  color: #a21caf;
-}
-
-.group-chip-owner .group-code {
-  background: #fae8ff;
-  color: #86198f;
-}
-
-/* Nút Icon Sao Chép Tinh Gọn (Chỉ biểu tượng, không chữ) */
+/* Nút Icon Sao Chép Tinh Gọn (Có hiệu ứng checkmark như ChatGPT) */
 .btn-icon-copy {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
@@ -3997,14 +4083,33 @@ body:not(.is-owner) .group-role-badge {
   transform: scale(0.92);
 }
 
+.btn-icon-copy.is-copied {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+  border-color: #10b981 !important;
+  transform: scale(1.08);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+.icon-check-svg {
+  stroke: #059669;
+  animation: checkPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .btn-share-invite {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px !important;
-  font-size: 12px !important;
+  gap: 5px;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
   font-weight: 600;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0;
 }
 
 .btn-devices-trigger,
@@ -4012,24 +4117,26 @@ body:not(.is-owner) .group-role-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 9px !important;
-  font-size: 12px !important;
-  font-weight: 500;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 600;
   border-radius: 8px !important;
+  flex-shrink: 0;
 }
 
 .btn-ghost-danger {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px !important;
-  font-size: 12px !important;
+  padding: 6px 10px !important;
+  font-size: 12.5px !important;
   color: var(--text-muted) !important;
   background: transparent !important;
   border: 1px solid transparent !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .btn-ghost-danger:hover {
@@ -4082,29 +4189,18 @@ body:not(.is-owner) .group-role-badge {
 }
 
 @media (max-width: 639px) {
-  .group-bar {
-    padding: 8px 10px;
+  .group-card-box {
+    padding: 14px 14px;
+  }
+  .group-card-header {
     gap: 8px;
-    margin: 2px auto 8px;
   }
-  .group-identity {
-    width: 100%;
-    justify-content: space-between;
-    padding-bottom: 6px;
-    border-bottom: 1px dashed rgba(226, 232, 240, 0.9);
+  .group-actions-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
-  .group-actions {
-    width: 100%;
-    justify-content: flex-start;
-    gap: 6px;
-  }
-  .group-chip {
-    padding: 2px 4px 2px 6px;
-    font-size: 11.5px;
-  }
-  .group-code {
-    font-size: 11.5px;
-    padding: 1px 4px;
+  .group-action-card {
+    padding: 10px 12px;
   }
 }
 

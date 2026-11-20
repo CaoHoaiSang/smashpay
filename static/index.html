@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=4.5" />
+  <link rel="stylesheet" href="/static/styles.css?v=4.6" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -84,57 +84,6 @@
           <span class="nav-tab-text">Bảng điểm</span>
         </button>
       </nav>
-    </div>
-    <div id="group-bar" class="group-bar hidden">
-      <div class="group-identity">
-        <div class="group-name-wrap">
-          <svg class="group-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <strong id="group-bar-name" class="group-title"></strong>
-        </div>
-        <span id="group-bar-role" class="badge group-role-badge"></span>
-      </div>
-      <div class="group-actions">
-        <!-- 1. Mã mời (Tần suất dùng cao nhất) -->
-        <div class="group-chip group-chip-invite" title="Mã mời thành viên vào nhóm">
-          <span class="group-chip-label">Mã mời</span>
-          <code id="group-invite-code" class="group-code"></code>
-          <button id="btn-copy-invite" class="btn-icon-copy" type="button" title="Sao chép mã mời" aria-label="Sao chép mã mời">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          </button>
-          <button id="btn-share-invite" class="btn btn-primary btn-xs btn-share-invite owner-only" type="button" title="Gửi link mời qua Zalo / Messenger">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-            <span>Mời</span>
-          </button>
-        </div>
-
-        <!-- 2. Quản lý duyệt máy -->
-        <button id="btn-devices" class="btn btn-secondary btn-xs btn-devices-trigger owner-only" type="button" title="Quản lý máy & duyệt người vào nhóm">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="14" x="3" y="4" rx="2"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>
-          <span>Máy vào</span>
-          <span id="device-pending-count" class="pending-count hidden">0</span>
-        </button>
-
-        <!-- 3. Mã chủ nhóm (Chỉ chủ nhóm thấy) -->
-        <div class="group-chip group-chip-owner owner-only" title="Mã chủ nhóm bí mật (đăng nhập quyền chủ trên máy khác)">
-          <span class="group-chip-label">Mã chủ</span>
-          <code id="group-owner-code" class="group-code"></code>
-          <button id="btn-copy-owner" class="btn-icon-copy" type="button" title="Sao chép mã chủ nhóm" aria-label="Sao chép mã chủ nhóm">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          </button>
-        </div>
-
-        <!-- 4. Sao lưu dữ liệu SQLite -->
-        <button id="btn-download-backup" class="btn btn-secondary btn-xs btn-backup-trigger owner-only" type="button" title="Tải file sao lưu dữ liệu SQLite">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span>Sao lưu</span>
-        </button>
-
-        <!-- 5. Rời nhóm (Đặt cuối cùng để tránh bấm nhầm) -->
-        <button id="btn-leave-group" class="btn btn-ghost-danger btn-xs btn-leave-trigger" type="button" title="Rời nhóm trên thiết bị này">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          <span>Rời nhóm</span>
-        </button>
-      </div>
     </div>
   </header>
 
@@ -394,7 +343,7 @@
       <div class="card">
         <div class="section-head">
           <div>
-            <h2>Danh sách thành viên cố định</h2>
+            <h2>Danh sách thành viên</h2>
             <p class="muted small">Lưu sẵn thông tin ngân hàng để hệ thống tự sinh mã VietQR mỗi khi thành viên đó ứng tiền.</p>
           </div>
           <button class="btn btn-primary btn-sm btn-gradient" id="btn-add-member">
@@ -403,6 +352,79 @@
           </button>
         </div>
         <div id="members-list" class="members-list"></div>
+      </div>
+
+      <!-- THẺ QUẢN LÝ NHÓM & CÀI ĐẶT (Nằm trong Trang Thành viên, bên dưới Danh sách) -->
+      <div id="group-bar" class="card group-card-box hidden">
+        <div class="group-card-header">
+          <div class="group-identity">
+            <div class="group-name-wrap">
+              <div class="group-avatar-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div>
+                <div class="group-title-row">
+                  <strong id="group-bar-name" class="group-title">Nhóm của tôi</strong>
+                  <span id="group-bar-role" class="badge group-role-badge">Chủ nhóm</span>
+                </div>
+                <p class="group-sub-text">Mã mời thành viên, phân quyền thiết bị &amp; sao lưu</p>
+              </div>
+            </div>
+          </div>
+          <button id="btn-leave-group" class="btn btn-ghost-danger btn-sm btn-leave-trigger" type="button" title="Rời nhóm trên thiết bị này">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Rời nhóm</span>
+          </button>
+        </div>
+
+        <div class="group-actions-grid">
+          <!-- 1. Mã mời (Tần suất dùng cao nhất) -->
+          <div class="group-action-card group-action-invite">
+            <div class="group-action-info">
+              <span class="group-action-label">Mã mời bạn chơi</span>
+              <div class="group-code-row">
+                <code id="group-invite-code" class="group-code">------</code>
+                <button id="btn-copy-invite" class="btn-icon-copy" type="button" title="Sao chép mã mời" aria-label="Sao chép mã mời">
+                  <svg class="icon-copy-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                </button>
+              </div>
+            </div>
+            <button id="btn-share-invite" class="btn btn-primary btn-sm btn-gradient btn-share-invite owner-only" type="button" title="Gửi link mời qua Zalo / Messenger">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              <span>Mời thành viên</span>
+            </button>
+          </div>
+
+          <!-- 2. Quản lý duyệt máy -->
+          <div class="group-action-card group-action-devices owner-only">
+            <div class="group-action-info">
+              <span class="group-action-label">Thiết bị tham gia</span>
+              <p class="group-action-desc">Danh sách máy và phê duyệt thành viên mới</p>
+            </div>
+            <button id="btn-devices" class="btn btn-secondary btn-sm btn-devices-trigger" type="button">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="14" x="3" y="4" rx="2"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>
+              <span>Duyệt máy</span>
+              <span id="device-pending-count" class="pending-count hidden">0</span>
+            </button>
+          </div>
+
+          <!-- 3. Mã chủ nhóm (Chỉ chủ nhóm) -->
+          <div class="group-action-card group-action-owner owner-only">
+            <div class="group-action-info">
+              <span class="group-action-label">Mã chủ nhóm (Bí mật)</span>
+              <div class="group-code-row">
+                <code id="group-owner-code" class="group-code group-code-owner">----------</code>
+                <button id="btn-copy-owner" class="btn-icon-copy" type="button" title="Sao chép mã chủ nhóm" aria-label="Sao chép mã chủ nhóm">
+                  <svg class="icon-copy-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                </button>
+              </div>
+            </div>
+            <button id="btn-download-backup" class="btn btn-secondary btn-sm btn-backup-trigger" type="button" title="Tải file sao lưu dữ liệu SQLite">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Sao lưu</span>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1059,6 +1081,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=4.5"></script>
+  <script src="/static/app.js?v=4.6"></script>
 </body>
 </html>
