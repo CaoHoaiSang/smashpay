@@ -2416,15 +2416,233 @@ function getScoreAudioCtx() {
   return scoreVoiceState.audioCtx;
 }
 
-function unlockAudio() {
+function writeAsciiString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+function samplesToWavBlob(samples, sampleRate, volume = 1) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  writeAsciiString(view, 0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeAsciiString(view, 8, "WAVE");
+  writeAsciiString(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAsciiString(view, 36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i] * volume));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function generateClassicChimeSamples(sampleRate = 22050) {
+  const len = Math.floor(sampleRate * 0.22);
+  const samples = new Float32Array(len);
+  let phase = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sampleRate;
+    const freq = 587.33 + (880 - 587.33) * (t / 0.12);
+    phase += (2 * Math.PI * freq) / sampleRate;
+    const env = Math.exp(-t * 14);
+    samples[i] = Math.sin(phase) * env * 0.85;
+  }
+  return samples;
+}
+
+function generateDigitalChimeSamples(sampleRate = 22050) {
+  const len = Math.floor(sampleRate * 0.26);
+  const samples = new Float32Array(len);
+  let phase1 = 0;
+  let phase2 = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sampleRate;
+    let s = 0;
+    if (t < 0.14) {
+      phase1 += (2 * Math.PI * 880) / sampleRate;
+      s += Math.sin(phase1) * Math.exp(-t * 18) * 0.75;
+    }
+    if (t >= 0.05) {
+      const t2 = t - 0.05;
+      phase2 += (2 * Math.PI * 1318.5) / sampleRate;
+      s += Math.sin(phase2) * Math.exp(-t2 * 18) * 0.75;
+    }
+    samples[i] = s;
+  }
+  return samples;
+}
+
+function generateRefereeChimeSamples(sampleRate = 22050) {
+  const len = Math.floor(sampleRate * 0.24);
+  const samples = new Float32Array(len);
+  let phase1 = 0;
+  let phase2 = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sampleRate;
+    let s = 0;
+    if (t < 0.08) {
+      phase1 += (2 * Math.PI * 2093) / sampleRate;
+      s += (Math.sin(phase1) + 0.4 * Math.sin(2 * phase1)) * Math.min(1, t * 100) * (1 - t / 0.08) * 0.9;
+    } else if (t >= 0.09 && t < 0.20) {
+      const t2 = t - 0.09;
+      phase2 += (2 * Math.PI * 2637) / sampleRate;
+      s += (Math.sin(phase2) + 0.4 * Math.sin(2 * phase2)) * Math.min(1, t2 * 100) * (1 - t2 / 0.11) * 0.9;
+    }
+    samples[i] = s;
+  }
+  return samples;
+}
+
+function generateArpeggioWinSamples(sampleRate = 22050) {
+  const dur = 1.6;
+  const len = Math.floor(sampleRate * dur);
+  const samples = new Float32Array(len);
+  const notes = [
+    { freq: 523.25, start: 0.00, end: 0.5 },
+    { freq: 659.25, start: 0.12, end: 0.6 },
+    { freq: 783.99, start: 0.24, end: 0.7 },
+    { freq: 1046.50, start: 0.36, end: 0.8 },
+    { freq: 1318.51, start: 0.48, end: 0.9 },
+    { freq: 1567.98, start: 0.60, end: 1.55 },
+    { freq: 523.25, start: 0.60, end: 1.55 },
+    { freq: 659.25, start: 0.60, end: 1.55 },
+    { freq: 1046.50, start: 0.60, end: 1.55 },
+  ];
+  notes.forEach((n) => {
+    let phase = 0;
+    const sIdx = Math.floor(n.start * sampleRate);
+    const eIdx = Math.floor(n.end * sampleRate);
+    for (let i = sIdx; i < eIdx && i < len; i++) {
+      const t = (i - sIdx) / sampleRate;
+      phase += (2 * Math.PI * n.freq) / sampleRate;
+      const env = Math.exp(-t * 3.2);
+      samples[i] += (Math.sin(phase) + 0.25 * Math.sin(2 * phase)) * env * 0.3;
+    }
+  });
+  return samples;
+}
+
+function generateFanfareWinSamples(sampleRate = 22050) {
+  const dur = 1.6;
+  const len = Math.floor(sampleRate * dur);
+  const samples = new Float32Array(len);
+  const notes = [
+    { freq: 523.25, start: 0.00, dur: 0.14 },
+    { freq: 659.25, start: 0.14, dur: 0.14 },
+    { freq: 783.99, start: 0.28, dur: 0.14 },
+    { freq: 1046.50, start: 0.42, dur: 0.20 },
+    { freq: 1318.51, start: 0.64, dur: 0.20 },
+    { freq: 1567.98, start: 0.86, dur: 0.65 },
+    { freq: 523.25, start: 0.86, dur: 0.65 },
+    { freq: 659.25, start: 0.86, dur: 0.65 },
+    { freq: 1046.50, start: 0.86, dur: 0.65 },
+  ];
+  notes.forEach((n) => {
+    let phase = 0;
+    const sIdx = Math.floor(n.start * sampleRate);
+    const eIdx = Math.floor((n.start + n.dur) * sampleRate);
+    for (let i = sIdx; i < eIdx && i < len; i++) {
+      const t = (i - sIdx) / sampleRate;
+      phase += (2 * Math.PI * n.freq) / sampleRate;
+      const wave = Math.sin(phase) + 0.45 * Math.sin(2 * phase) + 0.25 * Math.sin(3 * phase);
+      const env = Math.min(1, t * 80) * (1 - t / n.dur);
+      samples[i] += wave * env * 0.32;
+    }
+  });
+  return samples;
+}
+
+function generateWhistleWinSamples(sampleRate = 22050) {
+  const len = Math.floor(sampleRate * 0.8);
+  const samples = new Float32Array(len);
+  [0.0, 0.25, 0.50].forEach((start, idx) => {
+    const freq = 1950 + idx * 100;
+    let phase = 0;
+    const sIdx = Math.floor(start * sampleRate);
+    const eIdx = sIdx + Math.floor(0.18 * sampleRate);
+    for (let i = sIdx; i < eIdx && i < len; i++) {
+      const t = (i - sIdx) / sampleRate;
+      phase += (2 * Math.PI * freq) / sampleRate;
+      const env = Math.min(1, t * 100) * (1 - t / 0.18);
+      samples[i] += Math.sin(phase) * env * 0.75;
+    }
+  });
+  return samples;
+}
+
+function playViaWebAudio(samples, volume = 1) {
   try {
     const ctx = getScoreAudioCtx();
-    if (ctx && ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const buffer = ctx.createBuffer(1, samples.length, 22050);
+    const channelData = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) {
+      channelData[i] = samples[i] * volume;
     }
-    primeSpeechOutput();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
   } catch (e) {}
 }
+
+function playSampleSound(samples, volumeMultiplier = 1) {
+  // 1. Tell browser this is Media Playback (bypasses iPhone physical Silent Switch in Safari 16.4+)
+  if ("audioSession" in navigator) {
+    try { navigator.audioSession.type = "playback"; } catch (e) {}
+  }
+
+  // 2. Resume WebAudio if available
+  const ctx = getScoreAudioCtx();
+  if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+
+  // 3. Primary audio route: HTML5 Audio with WAV Blob
+  // HTML5 audio elements are mapped to the Media channel on iOS, allowing sound
+  // to play even if the user's phone is on silent/vibrate!
+  try {
+    const blob = samplesToWavBlob(samples, 22050, volumeMultiplier);
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = Math.min(1, Math.max(0, volumeMultiplier));
+    const p = audio.play();
+    if (p !== undefined) {
+      p.catch(() => {
+        // Fallback to Web Audio if HTML5 autoplay policy restricts it
+        playViaWebAudio(samples, volumeMultiplier);
+      });
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    playViaWebAudio(samples, volumeMultiplier);
+  }
+}
+
+function unlockAudio() {
+  if ("audioSession" in navigator) {
+    try { navigator.audioSession.type = "playback"; } catch (e) {}
+  }
+  const ctx = getScoreAudioCtx();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+  // Silent audio trigger to wake up iOS media audio session
+  try {
+    const silent = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+    silent.play().catch(() => {});
+  } catch (e) {}
+  primeSpeechOutput();
+}
+
 // Unlock Web Audio immediately on first user touch / click
 ["touchstart", "touchend", "click", "pointerdown"].forEach((evt) => {
   window.addEventListener(evt, unlockAudio, { passive: true, once: false });
@@ -2434,71 +2652,18 @@ function playVoiceChime(previewType) {
   const type = previewType || scoreSoundSettings.pointSound;
   if (type === "none") return;
 
-  try {
-    const ctx = getScoreAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  const vol = getScoreVolumeMultiplier();
+  let samples = null;
+  if (type === "classic") {
+    samples = generateClassicChimeSamples();
+  } else if (type === "digital") {
+    samples = generateDigitalChimeSamples();
+  } else if (type === "referee") {
+    samples = generateRefereeChimeSamples();
+  }
 
-    const now = ctx.currentTime;
-    const vol = getScoreVolumeMultiplier();
-
-    if (type === "classic") {
-      // Âm thanh cũ nhẹ nhàng yêu thích (Sine wave D5 -> A5)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(587.33, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-      gain.gain.setValueAtTime(0.25 * vol, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.14);
-    } else if (type === "digital") {
-      // Ping kỹ thuật số (2 nốt vui tươi 880Hz & 1320Hz)
-      [880, 1318.5].forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
-        gain.gain.setValueAtTime(0.22 * vol, now + idx * 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.11);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + idx * 0.05);
-        osc.stop(now + idx * 0.05 + 0.12);
-      });
-    } else if (type === "referee") {
-      // Còi trọng tài đôi sắc bén cho sân ồn
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = "sawtooth";
-      osc1.frequency.setValueAtTime(1950, now);
-      osc1.frequency.exponentialRampToValueAtTime(2200, now + 0.05);
-      gain1.gain.setValueAtTime(0.01, now);
-      gain1.gain.exponentialRampToValueAtTime(0.85 * vol, now + 0.012);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.07);
-
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = "sawtooth";
-      osc2.frequency.setValueAtTime(2450, now + 0.075);
-      osc2.frequency.exponentialRampToValueAtTime(2800, now + 0.15);
-      gain2.gain.setValueAtTime(0.001, now + 0.075);
-      gain2.gain.exponentialRampToValueAtTime(0.85 * vol, now + 0.088);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.075);
-      osc2.stop(now + 0.175);
-    }
-  } catch (e) {
-    console.warn("Audio chime error:", e);
+  if (samples) {
+    playSampleSound(samples, vol);
   }
 
   if (scoreSoundSettings.vibrate === "yes" && navigator.vibrate) {
@@ -2518,128 +2683,44 @@ function playWinSound(winnerName, setsA, setsB, isMatchWin, previewType) {
   const type = previewType || scoreSoundSettings.winSound;
   if (type === "none") return;
 
-  try {
-    const ctx = getScoreAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
-    const now = ctx.currentTime;
-    const vol = getScoreVolumeMultiplier();
+  const vol = getScoreVolumeMultiplier();
+  let samples = null;
+  let musicDuration = 1500;
 
-    if (type === "arpeggio") {
-      // Chuông ngân du dương êm tai (C5, E5, G5, C6, E6, G6)
-      const notes = [
-        { freq: 523.25, time: 0.00 },
-        { freq: 659.25, time: 0.12 },
-        { freq: 783.99, time: 0.24 },
-        { freq: 1046.50, time: 0.36 },
-        { freq: 1318.51, time: 0.48 },
-        { freq: 1567.98, time: 0.62 },
-      ];
-      notes.forEach((n) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(n.freq, now + n.time);
-        gain.gain.setValueAtTime(0.001, now + n.time);
-        gain.gain.exponentialRampToValueAtTime(0.35 * vol, now + n.time + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + n.time + 0.50);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + n.time);
-        osc.stop(now + n.time + 0.52);
-      });
-      // Final chord
-      [523.25, 659.25, 1046.50].forEach((freq) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, now + 0.62);
-        gain.gain.setValueAtTime(0.001, now + 0.62);
-        gain.gain.exponentialRampToValueAtTime(0.25 * vol, now + 0.65);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + 0.62);
-        osc.stop(now + 1.65);
-      });
-    } else if (type === "fanfare") {
-      // Kèn Trumpet khải hoàn
-      const notes = [
-        { freq: 523.25, time: 0.00, dur: 0.14 },
-        { freq: 659.25, time: 0.14, dur: 0.14 },
-        { freq: 783.99, time: 0.28, dur: 0.14 },
-        { freq: 1046.50, time: 0.42, dur: 0.20 },
-        { freq: 1318.51, time: 0.64, dur: 0.20 },
-        { freq: 1567.98, time: 0.86, dur: 0.65 },
-      ];
-      notes.forEach((n) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(n.freq, now + n.time);
-        const filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(3600, now + n.time);
-        gain.gain.setValueAtTime(0.001, now + n.time);
-        gain.gain.exponentialRampToValueAtTime(0.75 * vol, now + n.time + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + n.time + n.dur);
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + n.time);
-        osc.stop(now + n.time + n.dur + 0.02);
-      });
-      [523.25, 659.25, 1046.50].forEach((freq) => {
-        const chordOsc = ctx.createOscillator();
-        const chordGain = ctx.createGain();
-        chordOsc.type = "triangle";
-        chordOsc.frequency.setValueAtTime(freq, now + 0.86);
-        chordGain.gain.setValueAtTime(0.001, now + 0.86);
-        chordGain.gain.exponentialRampToValueAtTime(0.4 * vol, now + 0.90);
-        chordGain.gain.exponentialRampToValueAtTime(0.001, now + 1.55);
-        chordOsc.connect(chordGain);
-        chordGain.connect(ctx.destination);
-        chordOsc.start(now + 0.86);
-        chordOsc.stop(now + 1.6);
-      });
-    } else if (type === "whistle_speech") {
-      // 3 tiếng còi thể thao kết thúc trận
-      [0.0, 0.22, 0.44].forEach((t, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(1760 + i * 150, now + t);
-        gain.gain.setValueAtTime(0.01, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.6 * vol, now + t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.16);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + t);
-        osc.stop(now + t + 0.17);
-      });
-    }
-  } catch (e) {
-    console.warn("Win sound error:", e);
+  if (type === "arpeggio") {
+    samples = generateArpeggioWinSamples();
+    musicDuration = 1600;
+  } else if (type === "fanfare") {
+    samples = generateFanfareWinSamples();
+    musicDuration = 1600;
+  } else if (type === "whistle_speech") {
+    samples = generateWhistleWinSamples();
+    musicDuration = 850;
   }
 
-  // Rung chúc mừng
+  if (samples) {
+    playSampleSound(samples, vol);
+  }
+
   if (scoreSoundSettings.vibrate === "yes" && navigator.vibrate) {
     try { navigator.vibrate([200, 80, 200, 80, 400]); } catch (e) {}
   }
 
-  // Giọng nói đọc chúc mừng
+  // Phổ nhạc trước, đọc chúc mừng sau: delay 1.1s để tiếng nhạc cất lên trước!
   if (window.speechSynthesis && winnerName) {
-    try {
-      const text = isMatchWin
-        ? `Chúc mừng ${winnerName} đã chiến thắng chung cuộc!`
-        : `Chúc mừng ${winnerName} thắng ván!`;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "vi-VN";
-      utter.volume = 1;
-      utter.rate = 1;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
-    } catch (e) {}
+    setTimeout(() => {
+      try {
+        const text = isMatchWin
+          ? `Chúc mừng ${winnerName} đã chiến thắng chung cuộc!`
+          : `Chúc mừng ${winnerName} thắng ván!`;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "vi-VN";
+        utter.volume = 1;
+        utter.rate = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
+    }, Math.min(1200, musicDuration * 0.75));
   }
 }
 

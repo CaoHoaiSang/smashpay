@@ -3001,11 +3001,13 @@ textarea:focus {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
   }
 
   .sb-title-row {
     width: auto;
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .sb-set-badge {
