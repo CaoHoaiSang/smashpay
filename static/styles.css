@@ -1658,6 +1658,11 @@ body {
 /* =========================================
    MODALS
    ========================================= */
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1670,6 +1675,8 @@ body {
   padding: 20px;
   z-index: 1000;
   animation: fadeIn 0.2s ease-out;
+  overscroll-behavior: contain !important;
+  touch-action: none;
 }
 
 @keyframes fadeIn {
@@ -1685,6 +1692,9 @@ body {
   max-width: 520px;
   max-height: 90vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y;
   padding: 24px;
   border: 1px solid var(--border);
 }
@@ -2862,6 +2872,8 @@ textarea:focus {
   .modal-backdrop {
     align-items: flex-end !important;
     padding: 0 !important;
+    overscroll-behavior: contain !important;
+    touch-action: none;
   }
 
   .modal-card {
@@ -2871,6 +2883,9 @@ textarea:focus {
     max-height: 88vh;
     padding: 18px 14px max(20px, env(safe-area-inset-bottom)) !important;
     animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    overscroll-behavior: contain !important;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   @keyframes slideUpSheet {

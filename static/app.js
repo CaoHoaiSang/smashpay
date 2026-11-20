@@ -212,12 +212,53 @@ async function api(url, options = {}) {
   return res.json();
 }
 
+function updateBodyScrollLock() {
+  const openModals = document.querySelectorAll(".modal-backdrop:not(.hidden)");
+  if (openModals.length > 0) {
+    if (!document.body.classList.contains("modal-open")) {
+      const scrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.dataset.savedScrollY = String(scrollY);
+      document.body.classList.add("modal-open");
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+    }
+  } else {
+    if (document.body.classList.contains("modal-open")) {
+      const scrollY = parseInt(document.body.dataset.savedScrollY || "0", 10);
+      document.body.classList.remove("modal-open");
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+      delete document.body.dataset.savedScrollY;
+      window.scrollTo(0, scrollY);
+    }
+  }
+}
+
 function openModal(id) {
-  document.getElementById(id).classList.remove("hidden");
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("hidden");
+  updateBodyScrollLock();
 }
 
 function closeModal(id) {
-  document.getElementById(id).classList.add("hidden");
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add("hidden");
+  updateBodyScrollLock();
 }
 
 function switchTab(tabName) {
@@ -1776,8 +1817,25 @@ function bindEvents() {
 
   document.querySelectorAll(".modal-backdrop").forEach((bd) => {
     bd.addEventListener("click", (e) => {
-      if (e.target === bd) bd.classList.add("hidden");
+      if (e.target === bd) closeModal(bd.id);
     });
+    bd.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.target === bd) {
+          e.preventDefault();
+        }
+      },
+      { passive: false }
+    );
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((bd) => {
+        closeModal(bd.id);
+      });
+    }
   });
 
   document.getElementById("btn-empty-new-session").addEventListener("click", () => openNewSessionModal());
