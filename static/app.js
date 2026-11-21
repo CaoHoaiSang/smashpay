@@ -425,12 +425,36 @@ function renderGroupBar() {
   if (group.role === "owner") refreshOwnerQueue();
 }
 
+function renderTabPlaceholders() {
+  const hasGroup = Boolean(state.group);
+  const histNoGroup = document.getElementById("history-no-group");
+  const histContent = document.getElementById("history-content-box");
+  const membNoGroup = document.getElementById("members-no-group");
+  const membContent = document.getElementById("members-content-box");
+  const groupBar = document.getElementById("group-bar");
+
+  if (histNoGroup && histContent) {
+    histNoGroup.classList.toggle("hidden", hasGroup);
+    histContent.classList.toggle("hidden", !hasGroup);
+  }
+  if (membNoGroup && membContent) {
+    membNoGroup.classList.toggle("hidden", hasGroup);
+    membContent.classList.toggle("hidden", !hasGroup);
+  }
+  if (groupBar && !hasGroup) {
+    groupBar.classList.add("hidden");
+  }
+}
+
 function setAppLocked(locked) {
+  const gate = document.getElementById("group-gate");
+  const gateOpen = Boolean(gate && !gate.classList.contains("hidden"));
   document.body.classList.toggle("group-locked", locked);
+  document.body.classList.toggle("gate-open", gateOpen);
   document.body.classList.toggle("on-scoreboard", currentActiveTab === "scoreboard");
   const container = document.querySelector("main.container");
   if (container) {
-    if (locked && currentActiveTab !== "scoreboard") {
+    if (gateOpen) {
       container.setAttribute("inert", "");
     } else {
       container.removeAttribute("inert");
@@ -439,9 +463,6 @@ function setAppLocked(locked) {
 }
 
 async function openGroupGate(allowCancel = false) {
-  if (currentActiveTab === "scoreboard") {
-    return;
-  }
   const gate = document.getElementById("group-gate");
   if (gate) gate.classList.remove("hidden");
   setAppLocked(true);
@@ -453,6 +474,9 @@ async function openGroupGate(allowCancel = false) {
     if (state.group && (allowCancel || getSavedGroups().length > 0)) {
       cancelBtn.classList.remove("hidden");
       if (currentNameSpan) currentNameSpan.textContent = state.group.name || "Nhóm";
+    } else if (currentActiveTab === "history" || currentActiveTab === "members") {
+      cancelBtn.classList.remove("hidden");
+      if (currentNameSpan) currentNameSpan.textContent = currentActiveTab === "history" ? "Lịch sử" : "Thành viên";
     } else {
       cancelBtn.classList.add("hidden");
     }
@@ -471,7 +495,7 @@ async function openGroupGate(allowCancel = false) {
 function closeGroupGate() {
   const gate = document.getElementById("group-gate");
   if (gate) gate.classList.add("hidden");
-  setAppLocked(false);
+  setAppLocked(!state.group);
 }
 
 function dropGroupAccess() {
@@ -491,6 +515,7 @@ function dropGroupAccess() {
   state.sessions = [];
   renderGroupBar();
   renderGroupSwitcherBadge();
+  renderTabPlaceholders();
   const url = new URL(window.location.href);
   if (url.searchParams.has("session")) {
     url.searchParams.delete("session");
@@ -507,6 +532,7 @@ async function enterGroup() {
   }
   renderGroupBar();
   renderGroupSwitcherBadge();
+  renderTabPlaceholders();
   closeGroupGate();
   showGroupError("");
   await loadMembers();
@@ -975,11 +1001,14 @@ function bindGroupEvents() {
   const gateCancelBtn = document.getElementById("btn-gate-cancel");
   if (gateCancelBtn) {
     gateCancelBtn.addEventListener("click", () => {
-      if (state.group) {
-        closeGroupGate();
-      }
+      closeGroupGate();
     });
   }
+  document.querySelectorAll(".btn-open-gate-trigger").forEach((el) => {
+    el.addEventListener("click", () => {
+      openGroupGate(true);
+    });
+  });
   const switchGroupBtn = document.getElementById("btn-open-switch-group");
   if (switchGroupBtn) {
     switchGroupBtn.addEventListener("click", () => {
@@ -1197,14 +1226,15 @@ function switchTab(tabName) {
     p.classList.toggle("active", p.id === `tab-${tabName}`);
   });
 
-  // Scoreboard is public and shared - no group required!
+  // Scoreboard, History, and Members have dedicated tabs/views even without a group
   if (!state.group) {
-    if (tabName === "scoreboard") {
+    if (tabName === "scoreboard" || tabName === "history" || tabName === "members") {
       closeGroupGate();
     } else {
       openGroupGate();
     }
   }
+  renderTabPlaceholders();
 
   const targetScroll = tabScrollPositions[tabName] || 0;
   requestAnimationFrame(() => {
@@ -1285,6 +1315,7 @@ async function initApp() {
   bindEvents();
   bindGroupEvents();
   initScoreboard();
+  renderTabPlaceholders();
   const joinCode = new URLSearchParams(window.location.search).get("join");
   if (groupToken()) {
     try {

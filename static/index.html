@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.1" />
-  <link rel="manifest" href="/static/manifest.json?v=5.1" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.2" />
+  <link rel="manifest" href="/static/manifest.json?v=5.2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=5.1" />
+  <link rel="stylesheet" href="/static/styles.css?v=5.2" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -344,7 +344,17 @@
 
     <!-- TAB 2: HISTORY -->
     <section id="tab-history" class="tab-panel">
-      <div class="card">
+      <!-- PLACEHOLDER WHEN NO GROUP -->
+      <div id="history-no-group" class="no-group-placeholder card hidden">
+        <div class="no-group-icon">📜</div>
+        <h3>Chưa có dữ liệu Lịch sử</h3>
+        <p class="muted">Lịch sử các buổi đánh được lưu trữ riêng theo từng nhóm cầu lông. Vui lòng tham gia hoặc tạo nhóm để xem lại lịch sử các buổi chơi.</p>
+        <button type="button" class="btn btn-primary btn-gradient btn-open-gate-trigger">
+          🔑 Tham gia hoặc Tạo nhóm ngay
+        </button>
+      </div>
+
+      <div id="history-content-box" class="card">
         <div class="section-head">
           <div>
             <h2>Lịch sử các buổi đánh</h2>
@@ -361,7 +371,17 @@
 
     <!-- TAB 3: MEMBERS -->
     <section id="tab-members" class="tab-panel">
-      <div class="card">
+      <!-- PLACEHOLDER WHEN NO GROUP -->
+      <div id="members-no-group" class="no-group-placeholder card hidden">
+        <div class="no-group-icon">👥</div>
+        <h3>Chưa có Danh sách thành viên</h3>
+        <p class="muted">Danh sách thành viên cố định và thông tin chuyển khoản ngân hàng thuộc về sổ riêng của từng nhóm. Vui lòng vào nhóm để quản lý thành viên.</p>
+        <button type="button" class="btn btn-primary btn-gradient btn-open-gate-trigger">
+          🔑 Tham gia hoặc Tạo nhóm ngay
+        </button>
+      </div>
+
+      <div id="members-content-box" class="card">
         <div class="section-head">
           <div>
             <h2>Danh sách thành viên</h2>
@@ -1134,6 +1154,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=5.1"></script>
+  <script src="/static/app.js?v=5.2"></script>
 </body>
 </html>
