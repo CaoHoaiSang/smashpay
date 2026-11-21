@@ -537,12 +537,22 @@ const CHECK_ICON_SVG = `<svg class="icon-check-svg" viewBox="0 0 24 24" width="1
 function animateCopyButtonSuccess(btn) {
   if (!btn) return;
   btn.classList.add("is-copied");
-  btn.innerHTML = CHECK_ICON_SVG;
-  clearTimeout(btn._copyTimer);
-  btn._copyTimer = setTimeout(() => {
-    btn.classList.remove("is-copied");
-    btn.innerHTML = COPY_ICON_SVG;
-  }, 1800);
+  const iconWrap = btn.querySelector(".btn-copy-icon");
+  if (iconWrap) {
+    iconWrap.innerHTML = CHECK_ICON_SVG;
+    clearTimeout(btn._copyTimer);
+    btn._copyTimer = setTimeout(() => {
+      btn.classList.remove("is-copied");
+      iconWrap.innerHTML = COPY_ICON_SVG;
+    }, 1800);
+  } else {
+    btn.innerHTML = CHECK_ICON_SVG;
+    clearTimeout(btn._copyTimer);
+    btn._copyTimer = setTimeout(() => {
+      btn.classList.remove("is-copied");
+      btn.innerHTML = COPY_ICON_SVG;
+    }, 1800);
+  }
 }
 
 async function copyGroupText(text, okMsg, btn) {
@@ -2612,10 +2622,18 @@ function copyZaloSummary() {
   lines.push("", `🔗 Xem chi tiết & quét mã VietQR: ${window.location.href}`);
 
   const text = lines.join("\n");
+  const btn = document.getElementById("btn-copy-zalo");
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).then(() => showToast("Đã copy tin nhắn tổng kết gửi Zalo!"));
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Đã copy tin nhắn tổng kết gửi Zalo!");
+      if (btn) animateCopyButtonSuccess(btn);
+    }).catch(() => {
+      prompt("Copy tin nhắn bên dưới:", text);
+      if (btn) animateCopyButtonSuccess(btn);
+    });
   } else {
     prompt("Copy tin nhắn bên dưới:", text);
+    if (btn) animateCopyButtonSuccess(btn);
   }
 }
 
@@ -2947,7 +2965,19 @@ function bindEvents() {
       showToast("Chưa có số tài khoản để copy.");
       return;
     }
-    navigator.clipboard?.writeText(stk).then(() => showToast(`Đã copy STK: ${stk}`));
+    const btn = document.getElementById("btn-copy-stk");
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(stk).then(() => {
+        showToast(`Đã copy STK: ${stk}`);
+        if (btn) animateCopyButtonSuccess(btn);
+      }).catch(() => {
+        prompt("Copy STK:", stk);
+        if (btn) animateCopyButtonSuccess(btn);
+      });
+    } else {
+      prompt("Copy STK:", stk);
+      if (btn) animateCopyButtonSuccess(btn);
+    }
   });
 
   document.getElementById("btn-qr-mark-paid").addEventListener("click", async () => {

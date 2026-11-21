@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.0" />
-  <link rel="manifest" href="/static/manifest.json?v=5.0" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.1" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.1" />
+  <link rel="manifest" href="/static/manifest.json?v=5.1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=5.0" />
+  <link rel="stylesheet" href="/static/styles.css?v=5.1" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -298,8 +298,10 @@
               <h3>Cân đối chuyển khoản tối ưu</h3>
               <p class="muted small">Tự động gom gọn thành ít lượt chuyển nhất. Bấm quét VietQR tức thì.</p>
             </div>
-            <button class="btn btn-zalo btn-sm" id="btn-copy-zalo">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <button class="btn btn-zalo btn-sm" id="btn-copy-zalo" type="button" title="Sao chép nội dung gửi Zalo">
+              <span class="btn-copy-icon">
+                <svg class="icon-copy-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </span>
               <span>Copy gửi Zalo</span>
             </button>
           </div>
@@ -890,7 +892,12 @@
         <div id="qr-image-wrap" class="qr-image-wrap"></div>
         <div id="qr-details" class="qr-details"></div>
         <div class="qr-actions">
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-stk">Copy STK</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-stk">
+            <span class="btn-copy-icon">
+              <svg class="icon-copy-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </span>
+            <span>Copy STK</span>
+          </button>
           <button type="button" class="btn btn-primary btn-sm" id="btn-qr-mark-paid">✓ Đánh dấu đã chuyển</button>
         </div>
       </div>
@@ -1127,6 +1134,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=5.0"></script>
+  <script src="/static/app.js?v=5.1"></script>
 </body>
 </html>

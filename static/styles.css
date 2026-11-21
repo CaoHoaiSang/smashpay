@@ -824,11 +824,49 @@ body {
   background: linear-gradient(135deg, #0068ff 0%, #0052cc 100%);
   color: #fff;
   box-shadow: 0 4px 12px rgba(0, 104, 255, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-zalo:hover {
   box-shadow: 0 6px 16px rgba(0, 104, 255, 0.35);
   transform: translateY(-1px);
+}
+
+.btn-zalo .btn-copy-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-zalo.is-copied {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4) !important;
+}
+
+.btn-zalo.is-copied .btn-copy-icon {
+  transform: scale(1.15);
+  color: #d1fae5 !important;
+}
+
+.btn-copy-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.btn.is-copied .btn-copy-icon {
+  animation: checkPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1.1); }
 }
 
 /* =========================================
