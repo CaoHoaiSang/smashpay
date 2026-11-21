@@ -124,11 +124,41 @@ function saveGroupRecord(group, token, role) {
 }
 
 function removeSavedGroup(groupId) {
-  let list = getSavedGroups().filter((g) => g.id !== groupId);
-  localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(list));
-  renderGroupSwitcherBadge();
-  renderSavedGroupsModalList();
-  renderGateSavedGroups();
+  const list = getSavedGroups();
+  const target = list.find((g) => g.id === groupId);
+  if (!target) return;
+
+  const currentToken = groupToken();
+  const isActive = state.group && (state.group.id === groupId || currentToken === target.token);
+  const groupName = target.name || "nhóm này";
+
+  const confirmMsg = isActive
+    ? `Bạn đang ở trong nhóm "${groupName}".\n\nBạn có chắc chắn muốn xóa và rời khỏi nhóm này trên thiết bị này không?\n\n(Dữ liệu trên máy chủ vẫn được giữ nguyên, bạn có thể tham gia lại bằng mã mời hoặc mã chủ bất cứ lúc nào).`
+    : `Xóa nhóm "${groupName}" khỏi danh sách lưu trên thiết bị này?\n\n(Bạn có thể vào lại bằng mã mời hoặc link chia sẻ bất kỳ lúc nào).`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const updatedList = list.filter((g) => g.id !== groupId);
+  localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(updatedList));
+
+  if (isActive) {
+    if (joinTimer) clearInterval(joinTimer);
+    localStorage.removeItem(JOIN_CLAIM_KEY);
+    if (updatedList.length > 0) {
+      closeModal("modal-switch-group");
+      showToast(`Đã xóa nhóm "${groupName}". Đang chuyển sang "${updatedList[0].name}"...`);
+      switchToGroup(updatedList[0].id);
+    } else {
+      closeModal("modal-switch-group");
+      dropGroupAccess();
+      showToast(`Đã rời và xóa nhóm "${groupName}" trên thiết bị này.`);
+    }
+  } else {
+    renderGroupSwitcherBadge();
+    renderSavedGroupsModalList();
+    renderGateSavedGroups();
+    showToast(`Đã xóa nhóm "${groupName}" khỏi danh sách máy này.`);
+  }
 }
 
 async function switchToGroup(groupId) {
@@ -208,11 +238,16 @@ function renderGateSavedGroups() {
       const isOwner = g.role === "owner";
       return `
         <div class="gate-saved-group-pill" onclick="switchToGroup(${g.id})">
-          <div>
+          <div style="min-width:0; flex:1;">
             <span class="gate-saved-group-name">${escapeHtml(g.name)}</span>
             <span class="muted small" style="margin-left:6px;">(${isOwner ? "Chủ nhóm" : "Thành viên"})</span>
           </div>
-          <span style="color:var(--primary); font-weight:600; font-size:12.5px;">Vào ngay →</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="color:var(--primary); font-weight:600; font-size:12.5px;">Vào ngay →</span>
+            <button type="button" class="btn-icon-trash" style="padding:4px;" title="Xóa nhóm khỏi máy này" onclick="event.stopPropagation(); removeSavedGroup(${g.id});">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </button>
+          </div>
         </div>
       `;
     })
@@ -1044,18 +1079,8 @@ function bindGroupEvents() {
   }
   if (leaveBtn) {
     leaveBtn.addEventListener("click", () => {
-      if (!confirm("Rời nhóm trên máy này? Sổ vẫn giữ nguyên. Vào lại bằng link mời hoặc mã chủ.")) return;
-      localStorage.removeItem(JOIN_CLAIM_KEY);
-      if (joinTimer) clearInterval(joinTimer);
-      if (state.group) {
-        removeSavedGroup(state.group.id);
-      }
-      const remaining = getSavedGroups();
-      if (remaining.length > 0) {
-        switchToGroup(remaining[0].id);
-      } else {
-        dropGroupAccess();
-      }
+      if (!state.group) return;
+      removeSavedGroup(state.group.id);
     });
   }
   if (shareBtn) shareBtn.addEventListener("click", openShareSheet);
