@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SmashPay" />
   <title>SmashPay · Chia Tiền Cầu Lông</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.2" />
-  <link rel="manifest" href="/static/manifest.json?v=5.2" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=5.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon.svg?v=5.4" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon.svg?v=5.4" />
+  <link rel="manifest" href="/static/manifest.json?v=5.4" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=5.2" />
+  <link rel="stylesheet" href="/static/styles.css?v=5.4" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -144,6 +144,11 @@
               <p id="sess-notes" class="session-notes-text"></p>
             </div>
             <div class="header-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-clone-session" type="button" title="Tạo buổi mới dựa trên thông tin buổi này">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="btn-text-full">Giống buổi này</span>
+                <span class="btn-text-short">Giống</span>
+              </button>
               <button class="btn btn-secondary btn-sm btn-template-toggle owner-only" id="btn-toggle-template" type="button" title="Bật hoặc Tắt làm mẫu mặc định">
                 <span class="btn-template-star" aria-hidden="true">☆</span>
                 <span class="btn-text-full">Đặt làm mẫu</span>
@@ -399,26 +404,26 @@
       <div id="group-bar" class="card group-card-box hidden">
         <div class="group-card-header">
           <div class="group-identity">
-            <div class="group-name-wrap">
-              <div class="group-avatar-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <div class="group-avatar-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="group-details">
+              <div class="group-title-row">
+                <strong id="group-bar-name" class="group-title">Nhóm của tôi</strong>
+                <span id="group-bar-role" class="badge group-role-badge">Chủ nhóm</span>
               </div>
-              <div>
-                <div class="group-title-row">
-                  <strong id="group-bar-name" class="group-title">Nhóm của tôi</strong>
-                  <span id="group-bar-role" class="badge group-role-badge">Chủ nhóm</span>
-                  <button id="btn-open-switch-group" class="btn btn-secondary btn-xs btn-switch-group hidden" type="button" title="Chuyển sang nhóm khác">
-                    🔄 Đổi nhóm (<span id="saved-groups-badge">1</span>)
-                  </button>
-                </div>
-                <p class="group-sub-text">Mã mời thành viên, phân quyền thiết bị &amp; sao lưu</p>
-              </div>
+              <p class="group-sub-text">Mã mời thành viên, phân quyền thiết bị &amp; sao lưu</p>
             </div>
           </div>
-          <button id="btn-leave-group" class="btn btn-ghost-danger btn-sm btn-leave-trigger" type="button" title="Rời nhóm trên thiết bị này">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            <span>Rời nhóm</span>
-          </button>
+          <div class="group-header-actions">
+            <button id="btn-open-switch-group" class="btn btn-secondary btn-xs btn-switch-group hidden" type="button" title="Chuyển sang nhóm khác">
+              🔄 Đổi nhóm (<span id="saved-groups-badge">1</span>)
+            </button>
+            <button id="btn-leave-group" class="btn btn-ghost-danger btn-xs btn-leave-trigger" type="button" title="Rời nhóm trên thiết bị này">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Rời nhóm</span>
+            </button>
+          </div>
         </div>
 
         <div class="group-actions-grid">
@@ -1154,6 +1159,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=5.2"></script>
+  <script src="/static/app.js?v=5.4"></script>
 </body>
 </html>
