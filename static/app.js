@@ -95,6 +95,132 @@ function getInitials(name) {
 
 const GROUP_TOKEN_KEY = "smashpay.groupToken";
 const JOIN_CLAIM_KEY = "smashpay.joinClaim";
+const SAVED_GROUPS_KEY = "smashpay.savedGroups";
+
+function getSavedGroups() {
+  try {
+    const raw = localStorage.getItem(SAVED_GROUPS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveGroupRecord(group, token, role) {
+  if (!group || !token) return;
+  let list = getSavedGroups();
+  list = list.filter((g) => g.id !== group.id && g.token !== token);
+  list.unshift({
+    id: group.id,
+    name: group.name || "Nhóm cầu lông",
+    token: token,
+    role: role || (group.role || "member"),
+    lastUsed: Date.now(),
+  });
+  if (list.length > 30) list = list.slice(0, 30);
+  localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(list));
+  renderGroupSwitcherBadge();
+}
+
+function removeSavedGroup(groupId) {
+  let list = getSavedGroups().filter((g) => g.id !== groupId);
+  localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(list));
+  renderGroupSwitcherBadge();
+  renderSavedGroupsModalList();
+  renderGateSavedGroups();
+}
+
+async function switchToGroup(groupId) {
+  const list = getSavedGroups();
+  const target = list.find((g) => g.id === groupId);
+  if (!target) return;
+  localStorage.setItem(GROUP_TOKEN_KEY, target.token);
+  target.lastUsed = Date.now();
+  localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(list));
+  closeModal("modal-switch-group");
+  closeGroupGate();
+  showToast(`Chuyển sang nhóm: ${target.name}`);
+  try {
+    await enterGroup();
+  } catch (err) {
+    showToast(`Không thể tải nhóm: ${err.message}`);
+    openGroupGate();
+  }
+}
+
+function renderGroupSwitcherBadge() {
+  const list = getSavedGroups();
+  const btn = document.getElementById("btn-open-switch-group");
+  const badge = document.getElementById("saved-groups-badge");
+  if (!btn || !badge) return;
+  badge.textContent = String(list.length);
+  btn.classList.toggle("hidden", list.length === 0 || !state.group);
+}
+
+function renderSavedGroupsModalList() {
+  const container = document.getElementById("saved-groups-list");
+  if (!container) return;
+  const list = getSavedGroups();
+  const currentToken = groupToken();
+  if (list.length === 0) {
+    container.innerHTML = `<p class="muted small" style="text-align:center; padding:16px 0;">Chưa lưu nhóm nào trên máy này.</p>`;
+    return;
+  }
+  container.innerHTML = list
+    .map((g) => {
+      const isActive = state.group && (state.group.id === g.id || currentToken === g.token);
+      const isOwner = g.role === "owner";
+      const initial = (g.name || "N").trim().charAt(0).toUpperCase();
+      return `
+        <div class="saved-group-item ${isActive ? "is-active" : ""}" onclick="switchToGroup(${g.id})">
+          <div class="saved-group-avatar">${escapeHtml(initial)}</div>
+          <div class="saved-group-info">
+            <div class="saved-group-name-row">
+              <span class="saved-group-name">${escapeHtml(g.name)}</span>
+              ${isActive ? `<span class="saved-group-badge-active">Đang dùng</span>` : ""}
+            </div>
+            <div class="saved-group-meta">
+              <span>${isOwner ? "👑 Chủ nhóm" : "Thành viên"}</span>
+            </div>
+          </div>
+          <button type="button" class="btn-icon-trash" title="Xóa nhóm khỏi danh sách máy này" onclick="event.stopPropagation(); removeSavedGroup(${g.id});">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderGateSavedGroups() {
+  const section = document.getElementById("group-gate-saved-section");
+  const listContainer = document.getElementById("group-gate-saved-list");
+  if (!section || !listContainer) return;
+  const list = getSavedGroups();
+  if (list.length === 0) {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+  listContainer.innerHTML = list
+    .map((g) => {
+      const isOwner = g.role === "owner";
+      return `
+        <div class="gate-saved-group-pill" onclick="switchToGroup(${g.id})">
+          <div>
+            <span class="gate-saved-group-name">${escapeHtml(g.name)}</span>
+            <span class="muted small" style="margin-left:6px;">(${isOwner ? "Chủ nhóm" : "Thành viên"})</span>
+          </div>
+          <span style="color:var(--primary); font-weight:600; font-size:12.5px;">Vào ngay →</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+window.switchToGroup = switchToGroup;
+window.removeSavedGroup = removeSavedGroup;
 
 const state = {
   group: null,
@@ -312,13 +438,26 @@ function setAppLocked(locked) {
   }
 }
 
-async function openGroupGate() {
+async function openGroupGate(allowCancel = false) {
   if (currentActiveTab === "scoreboard") {
     return;
   }
   const gate = document.getElementById("group-gate");
   if (gate) gate.classList.remove("hidden");
   setAppLocked(true);
+  renderGateSavedGroups();
+
+  const cancelBtn = document.getElementById("btn-gate-cancel");
+  const currentNameSpan = document.getElementById("gate-current-group-name");
+  if (cancelBtn) {
+    if (state.group && (allowCancel || getSavedGroups().length > 0)) {
+      cancelBtn.classList.remove("hidden");
+      if (currentNameSpan) currentNameSpan.textContent = state.group.name || "Nhóm";
+    } else {
+      cancelBtn.classList.add("hidden");
+    }
+  }
+
   const claim = document.getElementById("group-claim-box");
   try {
     const res = await fetch("/api/groups/status");
@@ -351,6 +490,7 @@ function dropGroupAccess() {
   state.hiddenMembers = [];
   state.sessions = [];
   renderGroupBar();
+  renderGroupSwitcherBadge();
   const url = new URL(window.location.href);
   if (url.searchParams.has("session")) {
     url.searchParams.delete("session");
@@ -361,7 +501,12 @@ function dropGroupAccess() {
 
 async function enterGroup() {
   state.group = await api("/api/group");
+  const token = groupToken();
+  if (state.group && token) {
+    saveGroupRecord(state.group, token, state.group.role);
+  }
   renderGroupBar();
+  renderGroupSwitcherBadge();
   closeGroupGate();
   showGroupError("");
   await loadMembers();
@@ -641,11 +786,13 @@ function openShareSheet() {
   if (preview) preview.textContent = inviteLink();
   if (more) more.classList.toggle("hidden", typeof navigator.share !== "function");
   if (sheet) sheet.classList.remove("hidden");
+  updateBodyScrollLock();
 }
 
 function closeShareSheet() {
   const sheet = document.getElementById("share-sheet");
   if (sheet) sheet.classList.add("hidden");
+  updateBodyScrollLock();
 }
 
 function openZaloShare(url) {
@@ -815,6 +962,28 @@ function bindGroupEvents() {
       switchTab("scoreboard");
     });
   }
+  const gateCancelBtn = document.getElementById("btn-gate-cancel");
+  if (gateCancelBtn) {
+    gateCancelBtn.addEventListener("click", () => {
+      if (state.group) {
+        closeGroupGate();
+      }
+    });
+  }
+  const switchGroupBtn = document.getElementById("btn-open-switch-group");
+  if (switchGroupBtn) {
+    switchGroupBtn.addEventListener("click", () => {
+      renderSavedGroupsModalList();
+      openModal("modal-switch-group");
+    });
+  }
+  const addAnotherGroupBtn = document.getElementById("btn-add-another-group");
+  if (addAnotherGroupBtn) {
+    addAnotherGroupBtn.addEventListener("click", () => {
+      closeModal("modal-switch-group");
+      openGroupGate(true);
+    });
+  }
   const copyInvite = document.getElementById("btn-copy-invite");
   const copyOwner = document.getElementById("btn-copy-owner");
   const leaveBtn = document.getElementById("btn-leave-group");
@@ -839,7 +1008,15 @@ function bindGroupEvents() {
       if (!confirm("Rời nhóm trên máy này? Sổ vẫn giữ nguyên. Vào lại bằng link mời hoặc mã chủ.")) return;
       localStorage.removeItem(JOIN_CLAIM_KEY);
       if (joinTimer) clearInterval(joinTimer);
-      dropGroupAccess();
+      if (state.group) {
+        removeSavedGroup(state.group.id);
+      }
+      const remaining = getSavedGroups();
+      if (remaining.length > 0) {
+        switchToGroup(remaining[0].id);
+      } else {
+        dropGroupAccess();
+      }
     });
   }
   if (shareBtn) shareBtn.addEventListener("click", openShareSheet);
@@ -933,7 +1110,7 @@ function bindGroupEvents() {
 }
 
 function updateBodyScrollLock() {
-  const openModals = document.querySelectorAll(".modal-backdrop:not(.hidden)");
+  const openModals = document.querySelectorAll(".modal-backdrop:not(.hidden), .share-sheet:not(.hidden)");
   if (openModals.length > 0) {
     if (!document.body.classList.contains("modal-open")) {
       const scrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
