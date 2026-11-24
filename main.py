@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -21,6 +22,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="SmashPay - Chia Tiền Cầu Lông", version="1.0.0")
 
+app.add_middleware(GZipMiddleware, minimum_size=800)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -481,30 +483,120 @@ def restore_member(member_id: int, access: Dict[str, Any] = Depends(require_owne
 # ---------- Sessions API ----------
 
 
+def _rows_by(cur, query: str, ids: List[int], key: str) -> Dict[int, List[Dict[str, Any]]]:
+    buckets: Dict[int, List[Dict[str, Any]]] = {item_id: [] for item_id in ids}
+    if not ids:
+        return buckets
+    cur.execute(query, ids)
+    for row in cur.fetchall():
+        buckets[row[key]].append(dict(row))
+    return buckets
+
+
+def _history_cards(cur, group_id: int) -> List[Dict[str, Any]]:
+    """Score every session for the history list without one full reload per buổi."""
+    cur.execute(
+        "SELECT * FROM sessions WHERE group_id = ? ORDER BY played_at DESC, id DESC",
+        (group_id,),
+    )
+    sessions = [dict(row) for row in cur.fetchall()]
+    if not sessions:
+        return []
+    ids = [session["id"] for session in sessions]
+    placeholders = ",".join("?" for _ in ids)
+    participants = _rows_by(
+        cur,
+        f"""
+        SELECT m.*, sp.session_id, sp.payer_member_id, mp.name AS payer_member_name
+        FROM session_participants sp
+        JOIN members m ON m.id = sp.member_id
+        LEFT JOIN members mp ON mp.id = sp.payer_member_id
+        WHERE sp.session_id IN ({placeholders})
+        """,
+        ids,
+        "session_id",
+    )
+    expenses = _rows_by(
+        cur,
+        f"""
+        SELECT e.*, m.name AS payer_name
+        FROM expenses e
+        LEFT JOIN members m ON m.id = e.payer_id
+        WHERE e.session_id IN ({placeholders})
+        ORDER BY e.id ASC
+        """,
+        ids,
+        "session_id",
+    )
+    expense_ids = [exp["id"] for rows in expenses.values() for exp in rows]
+    participants_by_expense: Dict[int, List[int]] = {}
+    items_by_expense: Dict[int, List[Dict[str, Any]]] = {}
+    if expense_ids:
+        exp_placeholders = ",".join("?" for _ in expense_ids)
+        cur.execute(
+            f"SELECT expense_id, member_id FROM expense_participants WHERE expense_id IN ({exp_placeholders}) ORDER BY member_id ASC",
+            expense_ids,
+        )
+        for row in cur.fetchall():
+            participants_by_expense.setdefault(row["expense_id"], []).append(row["member_id"])
+        cur.execute(
+            f"SELECT * FROM expense_items WHERE expense_id IN ({exp_placeholders}) ORDER BY id ASC",
+            expense_ids,
+        )
+        items = [dict(row) for row in cur.fetchall()]
+        item_ids = [item["id"] for item in items]
+        item_participants: Dict[int, List[int]] = {}
+        if item_ids:
+            item_placeholders = ",".join("?" for _ in item_ids)
+            cur.execute(
+                f"SELECT item_id, member_id FROM expense_item_participants WHERE item_id IN ({item_placeholders}) ORDER BY member_id ASC",
+                item_ids,
+            )
+            for row in cur.fetchall():
+                item_participants.setdefault(row["item_id"], []).append(row["member_id"])
+        for item in items:
+            item["participant_ids"] = item_participants.get(item["id"], [])
+            items_by_expense.setdefault(item["expense_id"], []).append(item)
+    cur.execute(
+        f"SELECT * FROM settlements WHERE session_id IN ({placeholders})",
+        ids,
+    )
+    paid_by_session: Dict[int, Dict[tuple, int]] = {}
+    for row in cur.fetchall():
+        paid_by_session.setdefault(row["session_id"], {})[
+            (row["from_member_id"], row["to_member_id"], row["amount"])
+        ] = row["is_paid"]
+
+    cards = []
+    for session in sessions:
+        session_id = session["id"]
+        session_expenses = []
+        for exp in expenses.get(session_id, []):
+            exp["participant_ids"] = participants_by_expense.get(exp["id"], [])
+            exp["items"] = items_by_expense.get(exp["id"], [])
+            session_expenses.append(exp)
+        summary = calculate_session_summary(participants.get(session_id, []), session_expenses)
+        paid_map = paid_by_session.get(session_id, {})
+        settlement_view = [
+            {"is_paid": paid_map.get((tr["from_member_id"], tr["to_member_id"], tr["amount"]), 0)}
+            for tr in summary["transfers"]
+        ]
+        status = "settled" if session_is_settled(summary["member_summaries"], settlement_view) else "open"
+        if session.get("status") != status:
+            cur.execute("UPDATE sessions SET status = ? WHERE id = ?", (status, session_id))
+            session["status"] = status
+        session["participant_count"] = len(participants.get(session_id, []))
+        session["total_spent"] = summary["total_spent"]
+        session["total_transfers"] = len(summary["transfers"])
+        session["paid_transfers"] = sum(1 for item in settlement_view if item["is_paid"])
+        cards.append(session)
+    return cards
+
+
 @app.get("/api/sessions")
 def list_sessions(access: Dict[str, Any] = Depends(require_access)):
     with db_cursor() as cur:
-        cur.execute(
-            """
-            SELECT
-                s.*,
-                (SELECT COUNT(*) FROM session_participants sp WHERE sp.session_id = s.id) AS participant_count,
-                (SELECT COUNT(*) FROM settlements st WHERE st.session_id = s.id) AS total_transfers,
-                (SELECT COUNT(*) FROM settlements st WHERE st.session_id = s.id AND st.is_paid = 1) AS paid_transfers
-            FROM sessions s
-            WHERE s.group_id = ?
-            ORDER BY s.played_at DESC, s.id DESC
-            """,
-            (access["group_id"],),
-        )
-        rows = [dict(r) for r in cur.fetchall()]
-        for row in rows:
-            full = _load_session_full(cur, row["id"], access["group_id"])
-            row["status"] = full["session"]["status"]
-            row["total_spent"] = full["summary"]["total_spent"]
-            row["total_transfers"] = len(full["settlements"])
-            row["paid_transfers"] = sum(1 for st in full["settlements"] if st["is_paid"])
-        return rows
+        return _history_cards(cur, access["group_id"])
 
 
 @app.post("/api/sessions", status_code=201)

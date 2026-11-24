@@ -456,7 +456,7 @@ function renderGroupBar() {
   const inviteCode = document.getElementById("group-invite-code");
   if (inviteCode) inviteCode.textContent = group.invite_code || "";
   const ownerCode = document.getElementById("group-owner-code");
-  if (ownerCode) ownerCode.textContent = group.owner_code || "";
+  if (ownerCode) ownerCode.textContent = group.role === "owner" ? (group.owner_code || "") : "";
   if (group.role === "owner") refreshOwnerQueue();
 }
 
@@ -570,18 +570,14 @@ async function enterGroup() {
   renderTabPlaceholders();
   closeGroupGate();
   showGroupError("");
-  await loadMembers();
-  await loadSessions();
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const requestedId = Number(urlParams.get("session"));
-  if (requestedId && state.sessions.some((s) => s.id === requestedId)) {
-    await openSession(requestedId);
-  } else if (state.sessions.length > 0) {
-    await openSession(state.sessions[0].id);
-  } else {
-    state.current = null;
-    renderCurrentSession();
+  const requestedId = Number(new URLSearchParams(window.location.search).get("session"));
+  const openRequested = requestedId
+    ? openSession(requestedId).catch(() => null)
+    : Promise.resolve(null);
+  await Promise.all([loadMembers(), loadSessions(), openRequested]);
+  if (!state.current) {
+    if (state.sessions.length > 0) await openSession(state.sessions[0].id);
+    else renderCurrentSession();
   }
   startLiveRefresh();
 }
@@ -643,18 +639,41 @@ function stripJoinParam() {
   window.history.replaceState({}, "", url.pathname + (search ? `?${search}` : ""));
 }
 
+function selectedInviteRole() {
+  const picked = document.querySelector('input[name="invite-role"]:checked');
+  if (picked && picked.value === "owner" && state.group && state.group.role === "owner" && state.group.owner_code) {
+    return "owner";
+  }
+  return "member";
+}
+
 function inviteLink() {
-  if (!state.group || !state.group.invite_code) return "";
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("join", state.group.invite_code);
+  if (!state.group) return "";
+  const role = selectedInviteRole();
+  const code = role === "owner" ? state.group.owner_code : state.group.invite_code;
+  if (!code) return "";
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("join", code);
   return url.toString();
 }
 
 function inviteMessage() {
   const name = state.group ? state.group.name : "SmashPay";
-  return `Vào sổ SmashPay nhóm ${name}. Mở link, gõ tên và chờ chủ nhóm duyệt: ${inviteLink()}`;
+  if (selectedInviteRole() === "owner") {
+    return `Mở link để vào thẳng SmashPay nhóm ${name} với quyền chủ nhóm: ${inviteLink()}`;
+  }
+  return `Mở link để vào SmashPay nhóm ${name}. Mã mời đã gắn sẵn, gõ tên và chờ duyệt: ${inviteLink()}`;
+}
+
+function refreshSharePreview() {
+  const preview = document.getElementById("share-link-preview");
+  const note = document.getElementById("share-role-note");
+  if (preview) preview.textContent = inviteLink();
+  if (note) {
+    note.textContent = selectedInviteRole() === "owner"
+      ? "Người nhận mở link là vào thẳng với quyền chủ nhóm."
+      : "Người nhận mở link, thấy sẵn mã mời, gõ tên và chờ duyệt.";
+  }
 }
 
 function startLiveRefresh() {
@@ -792,16 +811,60 @@ async function presentJoinLink(code) {
   await openGroupGate();
   try {
     const info = await lookupCode(code);
+    const input = document.getElementById("group-join-code");
+    if (input) input.value = code;
     if (info.kind === "owner") {
-      showGroupError("Đây là mã chủ. Dán vào ô mã bên dưới để vào thẳng.");
-      const input = document.getElementById("group-join-code");
-      if (input) input.value = code;
+      await enterWithOwnerCode(code);
       return;
     }
     showRequestForm(code, info);
   } catch (err) {
     showGroupError(err.message);
   }
+}
+
+async function enterWithOwnerCode(code) {
+  const res = await fetch("/api/groups/join", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    await openGroupGate();
+    showGroupError(errorDetail(data, "Không vào được bằng mã chủ."));
+    const input = document.getElementById("group-join-code");
+    if (input) input.value = code;
+    return;
+  }
+  stripJoinParam();
+  await acceptGroupLogin(data);
+  showToast("Đã vào với quyền chủ nhóm.");
+}
+
+async function enterWithJoinCode(code) {
+  let info = null;
+  try {
+    info = await lookupCode(code);
+  } catch (err) {
+    showGroupError(err.message);
+    await openGroupGate();
+    return;
+  }
+  if (info.kind === "owner") {
+    await enterWithOwnerCode(code);
+    return;
+  }
+  if (groupToken()) {
+    try {
+      await enterGroup();
+      if (state.group && normalizeCode(state.group.invite_code) === normalizeCode(code)) {
+        stripJoinParam();
+        return;
+      }
+    } catch (_) {}
+  }
+  await presentJoinLink(code);
 }
 
 function beginJoinWait(claim, groupName, displayName) {
@@ -851,10 +914,11 @@ async function pollJoinClaim(claim) {
 
 function openShareSheet() {
   if (!state.group) return;
+  const memberRadio = document.querySelector('input[name="invite-role"][value="member"]');
+  if (memberRadio) memberRadio.checked = true;
+  refreshSharePreview();
   const sheet = document.getElementById("share-sheet");
-  const preview = document.getElementById("share-link-preview");
   const more = document.getElementById("share-more");
-  if (preview) preview.textContent = inviteLink();
   if (more) more.classList.toggle("hidden", typeof navigator.share !== "function");
   if (sheet) sheet.classList.remove("hidden");
   updateBodyScrollLock();
@@ -1084,6 +1148,9 @@ function bindGroupEvents() {
     });
   }
   if (shareBtn) shareBtn.addEventListener("click", openShareSheet);
+  document.querySelectorAll('input[name="invite-role"]').forEach((input) => {
+    input.addEventListener("change", refreshSharePreview);
+  });
   if (devicesBtn) devicesBtn.addEventListener("click", () => openDevices().catch((err) => showToast(err.message)));
   if (banner) banner.addEventListener("click", () => openDevices().catch((err) => showToast(err.message)));
   if (backupBtn) backupBtn.addEventListener("click", () => downloadBackup());
@@ -1342,20 +1409,15 @@ async function initApp() {
   initScoreboard();
   renderTabPlaceholders();
   const joinCode = new URLSearchParams(window.location.search).get("join");
+  if (joinCode) {
+    await enterWithJoinCode(joinCode);
+    return;
+  }
   if (groupToken()) {
     try {
       await enterGroup();
-      if (joinCode && state.group && normalizeCode(state.group.invite_code) === normalizeCode(joinCode)) {
-        stripJoinParam();
-      } else if (joinCode) {
-        showToast("Bạn đang ở một nhóm. Rời nhóm rồi mở lại link để xin vào nhóm khác.");
-      }
       return;
     } catch (_) {}
-  }
-  if (joinCode) {
-    await presentJoinLink(joinCode);
-    return;
   }
   if (localStorage.getItem(JOIN_CLAIM_KEY)) {
     await openGroupGate();
@@ -3929,9 +3991,16 @@ function interpretScorePair(n1, n2, curA, curB) {
       unchanged: false,
     });
   }
-  const changed = ranked.find((item) => !item.unchanged);
-  if (changed) return changed;
-  return ranked[0] || null;
+  const changed = ranked.filter((item) => !item.unchanged);
+  const unique = [];
+  changed.forEach((item) => {
+    if (!unique.some((kept) => kept.scoreA === item.scoreA && kept.scoreB === item.scoreB)) unique.push(item);
+  });
+  if (unique.length > 1) {
+    return { ambiguous: true, heardFirst: n1, heardSecond: n2 };
+  }
+  if (unique.length === 1) return unique[0];
+  return ranked.find((item) => item.unchanged) || null;
 }
 
 function applySpokenDeuce(n, curA, curB) {
@@ -4061,6 +4130,15 @@ function parseVoiceScore(rawText, curA, curB, nameA, nameB) {
   nums = nums.filter((n) => n >= 0 && n <= 30);
   if (nums.length >= 2) {
     const reading = interpretScorePair(nums[0], nums[1], curA, curB);
+    if (reading && reading.ambiguous) {
+      return {
+        action: "clarify",
+        heardFirst: reading.heardFirst,
+        heardSecond: reading.heardSecond,
+        nameA,
+        nameB,
+      };
+    }
     if (reading) {
       return {
         action: "set_score",
@@ -4126,6 +4204,13 @@ function handleVoiceTranscript(rawText) {
   if (parsed.action === "reset") {
     resetMatch();
     showVoiceBannerNotice(`Đã làm mới trận đấu qua giọng nói`);
+    return;
+  }
+
+  if (parsed.action === "clarify") {
+    const sideA = parsed.nameA || "Đội A";
+    const sideB = parsed.nameB || "Đội B";
+    showVoiceBannerNotice(`Nghe ${parsed.heardFirst} rồi ${parsed.heardSecond}, đang hòa. Nói thêm ${sideA} hoặc ${sideB}.`);
     return;
   }
 

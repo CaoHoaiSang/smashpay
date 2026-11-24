@@ -14,8 +14,9 @@
   <link rel="manifest" href="/static/manifest.json?v=5.5" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=5.5" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" /></noscript>
+  <link rel="stylesheet" href="/static/styles.css?v=5.7" />
 </head>
 <body>
   <div id="group-gate" class="group-gate hidden">
@@ -1130,7 +1131,17 @@
     <div class="share-sheet-panel">
       <div class="share-sheet-handle"></div>
       <h3>Mời vào nhóm</h3>
-      <p class="muted small">Người nhận mở link, gõ tên và chờ bạn duyệt. Link không tự cho vào sổ.</p>
+      <div class="share-role" role="radiogroup" aria-label="Quyền của người được mời">
+        <label>
+          <input type="radio" name="invite-role" value="member" checked />
+          Thành viên
+        </label>
+        <label>
+          <input type="radio" name="invite-role" value="owner" />
+          Chủ nhóm
+        </label>
+      </div>
+      <p id="share-role-note" class="muted small">Người nhận mở link, thấy sẵn mã mời, gõ tên và chờ duyệt.</p>
       <p id="share-link-preview" class="share-link-preview"></p>
       <div class="share-apps">
         <button type="button" class="share-app" id="share-zalo">
@@ -1159,6 +1170,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js?v=5.5"></script>
+  <script src="/static/app.js?v=5.7"></script>
 </body>
 </html>

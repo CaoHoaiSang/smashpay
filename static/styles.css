@@ -4640,6 +4640,36 @@ body:not(.is-owner) .group-role-badge {
   margin: 0 0 6px;
 }
 
+.share-role {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+
+.share-role label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.share-role input {
+  accent-color: var(--primary);
+}
+
+.share-role label:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
 .share-link-preview {
   margin: 10px 0 4px;
   padding: 8px 10px;
